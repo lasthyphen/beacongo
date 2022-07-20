@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vertex
@@ -14,18 +14,14 @@ type Parser interface {
 	ParseVtx(vertex []byte) (avalanche.Vertex, error)
 }
 
-// Parse parses the provided vertex bytes into a stateless vertex
-func Parse(bytes []byte) (StatelessVertex, error) {
+// Parse the provided vertex bytes into a stateless vertex
+func Parse(vertex []byte) (StatelessVertex, error) {
 	vtx := innerStatelessVertex{}
-	version, err := c.Unmarshal(bytes, &vtx)
-	if err != nil {
-		return nil, err
-	}
+	version, err := c.Unmarshal(vertex, &vtx)
 	vtx.Version = version
-
 	return statelessVertex{
 		innerStatelessVertex: vtx,
-		id:                   hashing.ComputeHash256Array(bytes),
-		bytes:                bytes,
-	}, nil
+		id:                   hashing.ComputeHash256Array(vertex),
+		bytes:                vertex,
+	}, err
 }

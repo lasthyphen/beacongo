@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -13,8 +13,6 @@ import (
 	"github.com/lasthyphen/beacongo/utils/math"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
-	"github.com/lasthyphen/beacongo/vms/platformvm/fx"
-	"github.com/lasthyphen/beacongo/vms/platformvm/stakeable"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 )
 
@@ -84,7 +82,7 @@ func (vm *VM) stake(
 			continue // We only care about staking DJTX, so ignore other assets
 		}
 
-		out, ok := utxo.Out.(*stakeable.LockOut)
+		out, ok := utxo.Out.(*StakeableLockOut)
 		if !ok {
 			// This output isn't locked, so it will be handled during the next
 			// iteration of the UTXO set
@@ -128,7 +126,7 @@ func (vm *VM) stake(
 		ins = append(ins, &djtx.TransferableInput{
 			UTXOID: utxo.UTXOID,
 			Asset:  djtx.Asset{ID: vm.ctx.DJTXAssetID},
-			In: &stakeable.LockIn{
+			In: &StakeableLockIn{
 				Locktime:       out.Locktime,
 				TransferableIn: in,
 			},
@@ -137,7 +135,7 @@ func (vm *VM) stake(
 		// Add the output to the staked outputs
 		stakedOuts = append(stakedOuts, &djtx.TransferableOutput{
 			Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-			Out: &stakeable.LockOut{
+			Out: &StakeableLockOut{
 				Locktime: out.Locktime,
 				TransferableOut: &secp256k1fx.TransferOutput{
 					Amt:          amountToStake,
@@ -151,7 +149,7 @@ func (vm *VM) stake(
 			// Some of it must be returned
 			returnedOuts = append(returnedOuts, &djtx.TransferableOutput{
 				Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-				Out: &stakeable.LockOut{
+				Out: &StakeableLockOut{
 					Locktime: out.Locktime,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt:          remainingValue,
@@ -181,7 +179,7 @@ func (vm *VM) stake(
 		}
 
 		out := utxo.Out
-		inner, ok := out.(*stakeable.LockOut)
+		inner, ok := out.(*StakeableLockOut)
 		if ok {
 			if inner.Locktime > now {
 				// This output is currently locked, so this output can't be
@@ -411,7 +409,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		out := utxo.Out
 		locktime := uint64(0)
 		// Set [locktime] to this UTXO's locktime, if applicable
-		if inner, ok := out.(*stakeable.LockOut); ok {
+		if inner, ok := out.(*StakeableLockOut); ok {
 			out = inner.TransferableOut
 			locktime = inner.Locktime
 		}
@@ -420,7 +418,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		// The UTXO says it's locked until [locktime], but this input, which
 		// consumes it, is not locked even though [locktime] hasn't passed. This
 		// is invalid.
-		if inner, ok := in.(*stakeable.LockIn); now < locktime && !ok {
+		if inner, ok := in.(*StakeableLockIn); now < locktime && !ok {
 			return errLockedFundsNotMarkedAsLocked
 		} else if ok {
 			if inner.Locktime != locktime {
@@ -446,7 +444,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			continue
 		}
 
-		owned, ok := out.(fx.Owned)
+		owned, ok := out.(Owned)
 		if !ok {
 			return errUnknownOwners
 		}
@@ -476,7 +474,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 		output := out.Output()
 		locktime := uint64(0)
 		// Set [locktime] to this output's locktime, if applicable
-		if inner, ok := output.(*stakeable.LockOut); ok {
+		if inner, ok := output.(*StakeableLockOut); ok {
 			output = inner.TransferableOut
 			locktime = inner.Locktime
 		}
@@ -492,7 +490,7 @@ func (vm *VM) semanticVerifySpendUTXOs(
 			continue
 		}
 
-		owned, ok := output.(fx.Owned)
+		owned, ok := output.(Owned)
 		if !ok {
 			return errUnknownOwners
 		}

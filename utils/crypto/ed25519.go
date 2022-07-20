@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package crypto
@@ -18,6 +18,7 @@ var (
 )
 
 var (
+	// Interface compliance
 	_ Factory    = &FactoryED25519{}
 	_ PublicKey  = &PublicKeyED25519{}
 	_ PrivateKey = &PrivateKeyED25519{}

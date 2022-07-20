@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vertex
@@ -35,6 +35,7 @@ type StatelessVertex interface {
 	verify.Verifiable
 	ID() ids.ID
 	Bytes() []byte
+
 	Version() uint16
 	ChainID() ids.ID
 	StopVertex() bool

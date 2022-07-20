@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -26,7 +26,7 @@ func TestTxHeapStop(t *testing.T) {
 		vm.MinValidatorStake,                                               // stake amount
 		uint64(defaultGenesisTime.Unix()+1),                                // startTime
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()+1), // endTime
-		ids.NodeID{},                            // node ID
+		ids.ShortID{},                           // node ID
 		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
 		0,                                       // shares
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
@@ -41,7 +41,7 @@ func TestTxHeapStop(t *testing.T) {
 		vm.MinValidatorStake,                                               // stake amount
 		uint64(defaultGenesisTime.Unix()+1),                                // startTime
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()+2), // endTime
-		ids.NodeID{1},                           // node ID
+		ids.ShortID{1},                          // node ID
 		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
 		0,                                       // shares
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key
@@ -56,7 +56,7 @@ func TestTxHeapStop(t *testing.T) {
 		vm.MinValidatorStake,                                               // stake amount
 		uint64(defaultGenesisTime.Unix()+1),                                // startTime
 		uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix()+3), // endTime
-		ids.NodeID{},                            // node ID
+		ids.ShortID{},                           // node ID
 		ids.ShortID{1, 2, 3, 4, 5, 6, 7},        // reward address
 		0,                                       // shares
 		[]*crypto.PrivateKeySECP256K1R{keys[0]}, // key

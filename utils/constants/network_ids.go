@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package constants
@@ -30,16 +30,16 @@ const (
 	FujiName     = "fuji"
 	TestnetName  = "testnet"
 	UnitTestName = "testing"
-	LocalName    = "dijets"
+	LocalName    = "local"
 
-	MainnetHRP  = "djtx"
+	MainnetHRP  = "dijetsx"
 	CascadeHRP  = "cascade"
 	DenaliHRP   = "denali"
 	EverestHRP  = "everest"
 	FujiHRP     = "fuji"
 	UnitTestHRP = "testing"
 	LocalHRP    = "dijets"
-	FallbackHRP = "dijetsx"
+	FallbackHRP = "dijetsv"
 )
 
 // Variables to be exported

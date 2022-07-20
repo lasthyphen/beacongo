@@ -1,26 +1,28 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 
-	stdjson "encoding/json"
-
+	"github.com/lasthyphen/beacongo/codec"
+	"github.com/lasthyphen/beacongo/codec/linearcodec"
+	"github.com/lasthyphen/beacongo/codec/reflectcodec"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
-	"github.com/lasthyphen/beacongo/utils/json"
-	"github.com/lasthyphen/beacongo/vms/avm/fxs"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
+	"github.com/lasthyphen/beacongo/utils/wrappers"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
 	"github.com/lasthyphen/beacongo/vms/nftfx"
 	"github.com/lasthyphen/beacongo/vms/propertyfx"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
+
+	cjson "github.com/lasthyphen/beacongo/utils/json"
 )
 
 var (
@@ -29,19 +31,19 @@ var (
 	_ djtx.TransferableIn  = &secp256k1fx.TransferInput{}
 	_ verify.State         = &secp256k1fx.MintOutput{}
 	_ djtx.TransferableOut = &secp256k1fx.TransferOutput{}
-	_ fxs.FxOperation      = &secp256k1fx.MintOperation{}
+	_ FxOperation          = &secp256k1fx.MintOperation{}
 	_ verify.Verifiable    = &secp256k1fx.Credential{}
 
 	_ verify.State      = &nftfx.MintOutput{}
 	_ verify.State      = &nftfx.TransferOutput{}
-	_ fxs.FxOperation   = &nftfx.MintOperation{}
-	_ fxs.FxOperation   = &nftfx.TransferOperation{}
+	_ FxOperation       = &nftfx.MintOperation{}
+	_ FxOperation       = &nftfx.TransferOperation{}
 	_ verify.Verifiable = &nftfx.Credential{}
 
 	_ verify.State      = &propertyfx.MintOutput{}
 	_ verify.State      = &propertyfx.OwnedOutput{}
-	_ fxs.FxOperation   = &propertyfx.MintOperation{}
-	_ fxs.FxOperation   = &propertyfx.BurnOperation{}
+	_ FxOperation       = &propertyfx.MintOperation{}
+	_ FxOperation       = &propertyfx.BurnOperation{}
 	_ verify.Verifiable = &propertyfx.Credential{}
 )
 
@@ -54,7 +56,7 @@ func CreateStaticService() *StaticService {
 
 // BuildGenesisArgs are arguments for BuildGenesis
 type BuildGenesisArgs struct {
-	NetworkID   json.Uint32                `json:"networkID"`
+	NetworkID   cjson.Uint32               `json:"networkID"`
 	GenesisData map[string]AssetDefinition `json:"genesisData"`
 	Encoding    formatting.Encoding        `json:"encoding"`
 }
@@ -62,7 +64,7 @@ type BuildGenesisArgs struct {
 type AssetDefinition struct {
 	Name         string                   `json:"name"`
 	Symbol       string                   `json:"symbol"`
-	Denomination json.Uint8               `json:"denomination"`
+	Denomination cjson.Uint8              `json:"denomination"`
 	InitialState map[string][]interface{} `json:"initialState"`
 	Memo         string                   `json:"memo"`
 }
@@ -76,17 +78,12 @@ type BuildGenesisReply struct {
 // BuildGenesis returns the UTXOs such that at least one address in [args.Addresses] is
 // referenced in the UTXO.
 func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, reply *BuildGenesisReply) error {
-	parser, err := txs.NewParser([]fxs.Fx{
-		&secp256k1fx.Fx{},
-		&nftfx.Fx{},
-		&propertyfx.Fx{},
-	})
+	manager, err := staticCodec()
 	if err != nil {
 		return err
 	}
 
 	g := Genesis{}
-	genesisCodec := parser.GenesisCodec()
 	for assetAlias, assetDefinition := range args.GenesisData {
 		assetMemo, err := formatting.Decode(args.Encoding, assetDefinition.Memo)
 		if err != nil {
@@ -94,8 +91,8 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 		}
 		asset := GenesisAsset{
 			Alias: assetAlias,
-			CreateAssetTx: txs.CreateAssetTx{
-				BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+			CreateAssetTx: CreateAssetTx{
+				BaseTx: BaseTx{BaseTx: djtx.BaseTx{
 					NetworkID:    uint32(args.NetworkID),
 					BlockchainID: ids.Empty,
 					Memo:         assetMemo,
@@ -106,22 +103,22 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			},
 		}
 		if len(assetDefinition.InitialState) > 0 {
-			initialState := &txs.InitialState{
+			initialState := &InitialState{
 				FxIndex: 0, // TODO: Should lookup secp256k1fx FxID
 			}
 			for assetType, initialStates := range assetDefinition.InitialState {
 				switch assetType {
 				case "fixedCap":
 					for _, state := range initialStates {
-						b, err := stdjson.Marshal(state)
+						b, err := json.Marshal(state)
 						if err != nil {
 							return fmt.Errorf("problem marshaling state: %w", err)
 						}
 						holder := Holder{}
-						if err := stdjson.Unmarshal(b, &holder); err != nil {
+						if err := json.Unmarshal(b, &holder); err != nil {
 							return fmt.Errorf("problem unmarshaling holder: %w", err)
 						}
-						_, addrbuff, err := address.ParseBech32(holder.Address)
+						_, addrbuff, err := formatting.ParseBech32(holder.Address)
 						if err != nil {
 							return fmt.Errorf("problem parsing holder address: %w", err)
 						}
@@ -139,12 +136,12 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 					}
 				case "variableCap":
 					for _, state := range initialStates {
-						b, err := stdjson.Marshal(state)
+						b, err := json.Marshal(state)
 						if err != nil {
 							return fmt.Errorf("problem marshaling state: %w", err)
 						}
 						owners := Owners{}
-						if err := stdjson.Unmarshal(b, &owners); err != nil {
+						if err := json.Unmarshal(b, &owners); err != nil {
 							return fmt.Errorf("problem unmarshaling Owners: %w", err)
 						}
 
@@ -153,12 +150,12 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 								Threshold: 1,
 							},
 						}
-						for _, addrStr := range owners.Minters {
-							_, addrBytes, err := address.ParseBech32(addrStr)
+						for _, address := range owners.Minters {
+							_, addrbuff, err := formatting.ParseBech32(address)
 							if err != nil {
 								return fmt.Errorf("problem parsing minters address: %w", err)
 							}
-							addr, err := ids.ToShortID(addrBytes)
+							addr, err := ids.ToShortID(addrbuff)
 							if err != nil {
 								return fmt.Errorf("problem parsing minters address: %w", err)
 							}
@@ -172,7 +169,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 					return errUnknownAssetType
 				}
 			}
-			initialState.Sort(genesisCodec)
+			initialState.Sort(manager)
 			asset.States = append(asset.States, initialState)
 		}
 		asset.Sort()
@@ -180,7 +177,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 	}
 	g.Sort()
 
-	b, err := genesisCodec.Marshal(txs.CodecVersion, &g)
+	b, err := manager.Marshal(codecVersion, &g)
 	if err != nil {
 		return fmt.Errorf("problem marshaling genesis: %w", err)
 	}
@@ -191,4 +188,35 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 	}
 	reply.Encoding = args.Encoding
 	return nil
+}
+
+func staticCodec() (codec.Manager, error) {
+	c := linearcodec.New(reflectcodec.DefaultTagName, 1<<20)
+	manager := codec.NewManager(math.MaxInt32)
+
+	errs := wrappers.Errs{}
+	errs.Add(
+		c.RegisterType(&BaseTx{}),
+		c.RegisterType(&CreateAssetTx{}),
+		c.RegisterType(&OperationTx{}),
+		c.RegisterType(&ImportTx{}),
+		c.RegisterType(&ExportTx{}),
+		c.RegisterType(&secp256k1fx.TransferInput{}),
+		c.RegisterType(&secp256k1fx.MintOutput{}),
+		c.RegisterType(&secp256k1fx.TransferOutput{}),
+		c.RegisterType(&secp256k1fx.MintOperation{}),
+		c.RegisterType(&secp256k1fx.Credential{}),
+		c.RegisterType(&nftfx.MintOutput{}),
+		c.RegisterType(&nftfx.TransferOutput{}),
+		c.RegisterType(&nftfx.MintOperation{}),
+		c.RegisterType(&nftfx.TransferOperation{}),
+		c.RegisterType(&nftfx.Credential{}),
+		c.RegisterType(&propertyfx.MintOutput{}),
+		c.RegisterType(&propertyfx.OwnedOutput{}),
+		c.RegisterType(&propertyfx.MintOperation{}),
+		c.RegisterType(&propertyfx.BurnOperation{}),
+		c.RegisterType(&propertyfx.Credential{}),
+		manager.RegisterCodec(codecVersion, c),
+	)
+	return manager, errs.Err
 }

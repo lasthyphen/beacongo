@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package mockdb
@@ -33,6 +33,7 @@ type Database struct {
 	OnNewIteratorWithStart          func([]byte) database.Iterator
 	OnNewIteratorWithPrefix         func([]byte) database.Iterator
 	OnNewIteratorWithStartAndPrefix func([]byte, []byte) database.Iterator
+	OnStat                          func(string) (string, error)
 	OnCompact                       func([]byte, []byte) error
 	OnClose                         func() error
 }
@@ -101,6 +102,13 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 		return nil
 	}
 	return db.OnNewIteratorWithStartAndPrefix(start, prefix)
+}
+
+func (db *Database) Stat(stat string) (string, error) {
+	if db.OnStat == nil {
+		return "", errNoFunction
+	}
+	return db.OnStat(stat)
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {

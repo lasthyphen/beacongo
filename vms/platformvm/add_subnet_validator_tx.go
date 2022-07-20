@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -11,11 +11,10 @@ import (
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow"
+	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/crypto"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
-
-	pChainValidator "github.com/lasthyphen/beacongo/vms/platformvm/validator"
 )
 
 var (
@@ -30,7 +29,7 @@ type UnsignedAddSubnetValidatorTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 	// The validator
-	Validator pChainValidator.SubnetValidator `serialize:"true" json:"validator"`
+	Validator SubnetValidator `serialize:"true" json:"validator"`
 	// Auth that will be allowing this validator into the network
 	SubnetAuth verify.Verifiable `serialize:"true" json:"subnetAuthorization"`
 }
@@ -132,7 +131,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 		if err != nil && err != database.ErrNotFound {
 			return nil, nil, fmt.Errorf(
 				"failed to find whether %s is a validator: %w",
-				tx.Validator.NodeID,
+				tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
 				err,
 			)
 		}
@@ -161,7 +160,7 @@ func (tx *UnsignedAddSubnetValidatorTx) Execute(
 				}
 				return nil, nil, fmt.Errorf(
 					"failed to find whether %s is a validator: %w",
-					tx.Validator.NodeID,
+					tx.Validator.NodeID.PrefixedString(constants.NodeIDPrefix),
 					err,
 				)
 			}
@@ -256,7 +255,7 @@ func (vm *VM) newAddSubnetValidatorTx(
 	weight, // Sampling weight of the new validator
 	startTime, // Unix time they start delegating
 	endTime uint64, // Unix time they top delegating
-	nodeID ids.NodeID, // ID of the node validating
+	nodeID ids.ShortID, // ID of the node validating
 	subnetID ids.ID, // ID of the subnet the validator will validate
 	keys []*crypto.PrivateKeySECP256K1R, // Keys to use for adding the validator
 	changeAddr ids.ShortID, // Address to send change to, if there is any
@@ -280,8 +279,8 @@ func (vm *VM) newAddSubnetValidatorTx(
 			Ins:          ins,
 			Outs:         outs,
 		}},
-		Validator: pChainValidator.SubnetValidator{
-			Validator: pChainValidator.Validator{
+		Validator: SubnetValidator{
+			Validator: Validator{
 				NodeID: nodeID,
 				Start:  startTime,
 				End:    endTime,

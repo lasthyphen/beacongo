@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/units"
 	"github.com/lasthyphen/beacongo/version"
 )
@@ -22,7 +22,7 @@ var (
 	UncompressingBuilder OutboundMsgBuilder
 	TestCodec            Codec
 
-	dummyNodeID             = ids.EmptyNodeID
+	dummyNodeID             = ids.ShortEmpty
 	dummyOnFinishedHandling = func() {}
 )
 
@@ -38,7 +38,7 @@ func init() {
 func TestBuildVersion(t *testing.T) {
 	networkID := uint32(12345)
 	myTime := uint64(time.Now().Unix())
-	ip := ips.IPPort{
+	ip := utils.IPDesc{
 		IP: net.IPv4(1, 2, 3, 4),
 	}
 

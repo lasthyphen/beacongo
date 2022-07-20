@@ -1,14 +1,10 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package throttling
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/snow/networking/tracker"
 	"github.com/lasthyphen/beacongo/snow/validators"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,19 +14,23 @@ var _ InboundMsgThrottler = &inboundMsgThrottler{}
 
 // InboundMsgThrottler rate-limits inbound messages from the network.
 type InboundMsgThrottler interface {
-	bandwidthThrottler
+	BandwidthThrottler
+
+	// Blocks until we can read a message of size [msgSize] from [nodeID].
+	// For every call to Acquire([msgSize], [nodeID]), we must (!) call
+	// Release([msgSize], [nodeID]) when done processing the message
+	// (or when we give up trying to read the message.)
+	Acquire(msgSize uint64, nodeID ids.ShortID)
 
 	// Mark that we're done processing a message of size [msgSize]
 	// from [nodeID].
-	Release(msgSize uint64, nodeID ids.NodeID)
+	Release(msgSize uint64, nodeID ids.ShortID)
 }
 
 type InboundMsgThrottlerConfig struct {
-	MsgByteThrottlerConfig   `json:"byteThrottlerConfig"`
-	BandwidthThrottlerConfig `json:"bandwidthThrottlerConfig"`
-	CPUThrottlerConfig       SystemThrottlerConfig `json:"cpuThrottlerConfig"`
-	DiskThrottlerConfig      SystemThrottlerConfig `json:"diskThrottlerConfig"`
-	MaxProcessingMsgsPerNode uint64                `json:"maxProcessingMsgsPerNode"`
+	MsgByteThrottlerConfig
+	BandwidthThrottlerConfig
+	MaxProcessingMsgsPerNode uint64 `json:"maxProcessingMsgsPerNode"`
 }
 
 // Returns a new, sybil-safe inbound message throttler.
@@ -39,17 +39,14 @@ func NewInboundMsgThrottler(
 	namespace string,
 	registerer prometheus.Registerer,
 	vdrs validators.Set,
-	throttlerConfig InboundMsgThrottlerConfig,
-	resourceTracker tracker.ResourceTracker,
-	cpuTargeter tracker.Targeter,
-	diskTargeter tracker.Targeter,
+	config InboundMsgThrottlerConfig,
 ) (InboundMsgThrottler, error) {
 	byteThrottler, err := newInboundMsgByteThrottler(
 		log,
 		namespace,
 		registerer,
 		vdrs,
-		throttlerConfig.MsgByteThrottlerConfig,
+		config.MsgByteThrottlerConfig,
 	)
 	if err != nil {
 		return nil, err
@@ -57,38 +54,16 @@ func NewInboundMsgThrottler(
 	bufferThrottler, err := newInboundMsgBufferThrottler(
 		namespace,
 		registerer,
-		throttlerConfig.MaxProcessingMsgsPerNode,
+		config.MaxProcessingMsgsPerNode,
 	)
 	if err != nil {
 		return nil, err
 	}
-	bandwidthThrottler, err := newBandwidthThrottler(
+	bandwidthThrottler, err := NewBandwidthThrottler(
 		log,
 		namespace,
 		registerer,
-		throttlerConfig.BandwidthThrottlerConfig,
-	)
-	if err != nil {
-		return nil, err
-	}
-	cpuThrottler, err := NewSystemThrottler(
-		fmt.Sprintf("%s_cpu", namespace),
-		registerer,
-		throttlerConfig.CPUThrottlerConfig,
-		vdrs,
-		resourceTracker.CPUTracker(),
-		cpuTargeter,
-	)
-	if err != nil {
-		return nil, err
-	}
-	diskThrottler, err := NewSystemThrottler(
-		fmt.Sprintf("%s_disk", namespace),
-		registerer,
-		throttlerConfig.DiskThrottlerConfig,
-		vdrs,
-		resourceTracker.DiskTracker(),
-		diskTargeter,
+		config.BandwidthThrottlerConfig,
 	)
 	if err != nil {
 		return nil, err
@@ -97,8 +72,6 @@ func NewInboundMsgThrottler(
 		byteThrottler:      byteThrottler,
 		bufferThrottler:    bufferThrottler,
 		bandwidthThrottler: bandwidthThrottler,
-		cpuThrottler:       cpuThrottler,
-		diskThrottler:      diskThrottler,
 	}, nil
 }
 
@@ -119,36 +92,27 @@ type inboundMsgThrottler struct {
 	// node that we're currently processing.
 	bufferThrottler *inboundMsgBufferThrottler
 	// Rate-limits based on recent bandwidth usage
-	bandwidthThrottler bandwidthThrottler
+	bandwidthThrottler BandwidthThrottler
 	// Rate-limits based on size of all messages from a given
 	// node that we're currently processing.
 	byteThrottler *inboundMsgByteThrottler
-	// Rate-limits based on CPU usage caused by a given node.
-	cpuThrottler SystemThrottler
-	// Rate-limits based on disk usage caused by a given node.
-	diskThrottler SystemThrottler
 }
 
 // Returns when we can read a message of size [msgSize] from node [nodeID].
 // Release([msgSize], [nodeID]) must be called (!) when done with the message
 // or when we give up trying to read the message, if applicable.
-// Even if [ctx] is canceled, [Release] must be called.
-func (t *inboundMsgThrottler) Acquire(ctx context.Context, msgSize uint64, nodeID ids.NodeID) {
+func (t *inboundMsgThrottler) Acquire(msgSize uint64, nodeID ids.ShortID) {
 	// Acquire space on the inbound message buffer
 	t.bufferThrottler.Acquire(nodeID)
 	// Acquire bandwidth
-	t.bandwidthThrottler.Acquire(ctx, msgSize, nodeID)
-	// Wait until our CPU usage drops to an acceptable level.
-	t.cpuThrottler.Acquire(ctx, nodeID)
-	// Wait until our disk usage drops to an acceptable level.
-	t.diskThrottler.Acquire(ctx, nodeID)
+	t.bandwidthThrottler.Acquire(msgSize, nodeID)
 	// Acquire space on the inbound message byte buffer
 	t.byteThrottler.Acquire(msgSize, nodeID)
 }
 
 // Must correspond to a previous call of Acquire([msgSize], [nodeID]).
 // See InboundMsgThrottler interface.
-func (t *inboundMsgThrottler) Release(msgSize uint64, nodeID ids.NodeID) {
+func (t *inboundMsgThrottler) Release(msgSize uint64, nodeID ids.ShortID) {
 	// Release space on the inbound message buffer
 	t.bufferThrottler.Release(nodeID)
 	// Release space on the inbound message byte buffer
@@ -156,11 +120,11 @@ func (t *inboundMsgThrottler) Release(msgSize uint64, nodeID ids.NodeID) {
 }
 
 // See BandwidthThrottler.
-func (t *inboundMsgThrottler) AddNode(nodeID ids.NodeID) {
+func (t *inboundMsgThrottler) AddNode(nodeID ids.ShortID) {
 	t.bandwidthThrottler.AddNode(nodeID)
 }
 
 // See BandwidthThrottler.
-func (t *inboundMsgThrottler) RemoveNode(nodeID ids.NodeID) {
+func (t *inboundMsgThrottler) RemoveNode(nodeID ids.ShortID) {
 	t.bandwidthThrottler.RemoveNode(nodeID)
 }

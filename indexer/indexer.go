@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package indexer
@@ -9,25 +9,26 @@ import (
 	"math"
 	"sync"
 
-	"github.com/gorilla/rpc/v2"
-
 	"github.com/lasthyphen/beacongo/api/server"
 	"github.com/lasthyphen/beacongo/chains"
-	"github.com/lasthyphen/beacongo/codec"
-	"github.com/lasthyphen/beacongo/codec/linearcodec"
-	"github.com/lasthyphen/beacongo/database"
-	"github.com/lasthyphen/beacongo/database/prefixdb"
-	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/snow"
-	"github.com/lasthyphen/beacongo/snow/engine/avalanche"
-	"github.com/lasthyphen/beacongo/snow/engine/common"
-	"github.com/lasthyphen/beacongo/snow/engine/snowman"
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/hashing"
 	"github.com/lasthyphen/beacongo/utils/json"
-	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/utils/timer/mockable"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
+
+	"github.com/lasthyphen/beacongo/codec"
+	"github.com/lasthyphen/beacongo/codec/linearcodec"
+	"github.com/lasthyphen/beacongo/codec/reflectcodec"
+	"github.com/lasthyphen/beacongo/database"
+	"github.com/lasthyphen/beacongo/database/prefixdb"
+	"github.com/lasthyphen/beacongo/ids"
+	"github.com/lasthyphen/beacongo/snow/engine/avalanche"
+	"github.com/lasthyphen/beacongo/snow/engine/common"
+	"github.com/lasthyphen/beacongo/snow/engine/snowman"
+	"github.com/lasthyphen/beacongo/snow/triggers"
+	"github.com/lasthyphen/beacongo/utils/logging"
+	"github.com/gorilla/rpc/v2"
 )
 
 const (
@@ -55,14 +56,13 @@ var (
 
 // Config for an indexer
 type Config struct {
-	DB                     database.Database
-	Log                    logging.Logger
-	IndexingEnabled        bool
-	AllowIncompleteIndex   bool
-	DecisionAcceptorGroup  snow.AcceptorGroup
-	ConsensusAcceptorGroup snow.AcceptorGroup
-	APIServer              server.PathAdder
-	ShutdownF              func()
+	DB                                      database.Database
+	Log                                     logging.Logger
+	IndexingEnabled                         bool
+	AllowIncompleteIndex                    bool
+	DecisionDispatcher, ConsensusDispatcher *triggers.EventDispatcher
+	APIServer                               server.PathAdder
+	ShutdownF                               func()
 }
 
 // Indexer causes accepted containers for a given chain
@@ -78,23 +78,22 @@ type Indexer interface {
 // NewIndexer returns a new Indexer and registers a new endpoint on the given API server.
 func NewIndexer(config Config) (Indexer, error) {
 	indexer := &indexer{
-		codec:                  codec.NewManager(codecMaxSize),
-		log:                    config.Log,
-		db:                     config.DB,
-		allowIncompleteIndex:   config.AllowIncompleteIndex,
-		indexingEnabled:        config.IndexingEnabled,
-		decisionAcceptorGroup:  config.DecisionAcceptorGroup,
-		consensusAcceptorGroup: config.ConsensusAcceptorGroup,
-		txIndices:              map[ids.ID]Index{},
-		vtxIndices:             map[ids.ID]Index{},
-		blockIndices:           map[ids.ID]Index{},
-		pathAdder:              config.APIServer,
-		shutdownF:              config.ShutdownF,
+		codec:                codec.NewManager(codecMaxSize),
+		log:                  config.Log,
+		db:                   config.DB,
+		allowIncompleteIndex: config.AllowIncompleteIndex,
+		indexingEnabled:      config.IndexingEnabled,
+		consensusDispatcher:  config.ConsensusDispatcher,
+		decisionDispatcher:   config.DecisionDispatcher,
+		txIndices:            map[ids.ID]Index{},
+		vtxIndices:           map[ids.ID]Index{},
+		blockIndices:         map[ids.ID]Index{},
+		pathAdder:            config.APIServer,
+		shutdownF:            config.ShutdownF,
 	}
-
 	if err := indexer.codec.RegisterCodec(
 		codecVersion,
-		linearcodec.NewCustomMaxLength(math.MaxUint32),
+		linearcodec.New(reflectcodec.DefaultTagName, math.MaxUint32),
 	); err != nil {
 		return nil, fmt.Errorf("couldn't register codec: %w", err)
 	}
@@ -137,10 +136,10 @@ type indexer struct {
 	// Chain ID --> index of txs of that chain (if applicable)
 	txIndices map[ids.ID]Index
 
-	// Notifies of newly accepted transactions
-	decisionAcceptorGroup snow.AcceptorGroup
 	// Notifies of newly accepted blocks and vertices
-	consensusAcceptorGroup snow.AcceptorGroup
+	consensusDispatcher *triggers.EventDispatcher
+	// Notifies of newly accepted transactions
+	decisionDispatcher *triggers.EventDispatcher
 }
 
 // Assumes [engine]'s context lock is not held
@@ -225,7 +224,7 @@ func (i *indexer) RegisterChain(name string, engine common.Engine) {
 
 	switch engine.(type) {
 	case snowman.Engine:
-		index, err := i.registerChainHelper(chainID, blockPrefix, name, "block", i.consensusAcceptorGroup)
+		index, err := i.registerChainHelper(chainID, blockPrefix, name, "block", i.consensusDispatcher)
 		if err != nil {
 			i.log.Fatal("couldn't create block index for %s: %s", name, err)
 			if err := i.close(); err != nil {
@@ -235,7 +234,7 @@ func (i *indexer) RegisterChain(name string, engine common.Engine) {
 		}
 		i.blockIndices[chainID] = index
 	case avalanche.Engine:
-		vtxIndex, err := i.registerChainHelper(chainID, vtxPrefix, name, "vtx", i.consensusAcceptorGroup)
+		vtxIndex, err := i.registerChainHelper(chainID, vtxPrefix, name, "vtx", i.consensusDispatcher)
 		if err != nil {
 			i.log.Fatal("couldn't create vertex index for %s: %s", name, err)
 			if err := i.close(); err != nil {
@@ -245,7 +244,7 @@ func (i *indexer) RegisterChain(name string, engine common.Engine) {
 		}
 		i.vtxIndices[chainID] = vtxIndex
 
-		txIndex, err := i.registerChainHelper(chainID, txPrefix, name, "tx", i.decisionAcceptorGroup)
+		txIndex, err := i.registerChainHelper(chainID, txPrefix, name, "tx", i.decisionDispatcher)
 		if err != nil {
 			i.log.Fatal("couldn't create tx index for %s: %s", name, err)
 			if err := i.close(); err != nil {
@@ -267,7 +266,7 @@ func (i *indexer) registerChainHelper(
 	chainID ids.ID,
 	prefixEnd byte,
 	name, endpoint string,
-	acceptorGroup snow.AcceptorGroup,
+	dispatcher *triggers.EventDispatcher,
 ) (Index, error) {
 	prefix := make([]byte, hashing.HashLen+wrappers.ByteLen)
 	copy(prefix, chainID[:])
@@ -280,7 +279,7 @@ func (i *indexer) registerChainHelper(
 	}
 
 	// Register index to learn about new accepted vertices
-	if err := acceptorGroup.RegisterAcceptor(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID), index, true); err != nil {
+	if err := dispatcher.RegisterChain(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID), index, true); err != nil {
 		_ = index.Close()
 		return nil, err
 	}
@@ -295,7 +294,7 @@ func (i *indexer) registerChainHelper(
 		return nil, err
 	}
 	handler := &common.HTTPHandler{LockOptions: common.NoLock, Handler: apiServer}
-	if err := i.pathAdder.AddRoute(handler, &sync.RWMutex{}, "index/"+name, "/"+endpoint); err != nil {
+	if err := i.pathAdder.AddRoute(handler, &sync.RWMutex{}, "index/"+name, "/"+endpoint, i.log); err != nil {
 		_ = index.Close()
 		return nil, err
 	}
@@ -323,19 +322,19 @@ func (i *indexer) close() error {
 	for chainID, txIndex := range i.txIndices {
 		errs.Add(
 			txIndex.Close(),
-			i.decisionAcceptorGroup.DeregisterAcceptor(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID)),
+			i.decisionDispatcher.DeregisterChain(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID)),
 		)
 	}
 	for chainID, vtxIndex := range i.vtxIndices {
 		errs.Add(
 			vtxIndex.Close(),
-			i.consensusAcceptorGroup.DeregisterAcceptor(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID)),
+			i.consensusDispatcher.DeregisterChain(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID)),
 		)
 	}
 	for chainID, blockIndex := range i.blockIndices {
 		errs.Add(
 			blockIndex.Close(),
-			i.consensusAcceptorGroup.DeregisterAcceptor(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID)),
+			i.consensusDispatcher.DeregisterChain(chainID, fmt.Sprintf("%s%s", indexNamePrefix, chainID)),
 		)
 	}
 	errs.Add(i.db.Close())

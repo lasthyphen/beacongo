@@ -1,11 +1,9 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
 
 import (
-	"path"
-
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/vms/nftfx"
@@ -17,11 +15,11 @@ import (
 // Aliases returns the default aliases based on the network ID
 func Aliases(genesisBytes []byte) (map[string][]string, map[ids.ID][]string, error) {
 	apiAliases := map[string][]string{
-		path.Join(constants.ChainAliasPrefix, constants.PlatformChainID.String()): {
+		constants.ChainAliasPrefix + constants.PlatformChainID.String(): {
 			"P",
 			"platform",
-			path.Join(constants.ChainAliasPrefix, "P"),
-			path.Join(constants.ChainAliasPrefix, "platform"),
+			constants.ChainAliasPrefix + "P",
+			constants.ChainAliasPrefix + "platform",
 		},
 	}
 	chainAliases := map[ids.ID][]string{
@@ -37,25 +35,13 @@ func Aliases(genesisBytes []byte) (map[string][]string, map[ids.ID][]string, err
 
 	for _, chain := range genesis.Chains {
 		uChain := chain.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
-		chainID := chain.ID()
-		endpoint := path.Join(constants.ChainAliasPrefix, chainID.String())
 		switch uChain.VMID {
 		case constants.AVMID:
-			apiAliases[endpoint] = []string{
-				"X",
-				"avm",
-				path.Join(constants.ChainAliasPrefix, "X"),
-				path.Join(constants.ChainAliasPrefix, "avm"),
-			}
-			chainAliases[chainID] = GetXChainAliases()
+			apiAliases[constants.ChainAliasPrefix+chain.ID().String()] = []string{"X", "avm", constants.ChainAliasPrefix + "X", constants.ChainAliasPrefix + "avm"}
+			chainAliases[chain.ID()] = GetXChainAliases()
 		case constants.EVMID:
-			apiAliases[endpoint] = []string{
-				"C",
-				"evm",
-				path.Join(constants.ChainAliasPrefix, "C"),
-				path.Join(constants.ChainAliasPrefix, "evm"),
-			}
-			chainAliases[chainID] = GetCChainAliases()
+			apiAliases[constants.ChainAliasPrefix+chain.ID().String()] = []string{"C", "evm", constants.ChainAliasPrefix + "C", constants.ChainAliasPrefix + "evm"}
+			chainAliases[chain.ID()] = GetCChainAliases()
 		}
 	}
 	return apiAliases, chainAliases, nil

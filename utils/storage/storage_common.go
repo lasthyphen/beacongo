@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package storage
@@ -6,6 +6,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -37,7 +38,7 @@ func ReadFileWithName(parentDir string, fileNameNoExt string) ([]byte, error) {
 		// no file found, return nothing
 		return nil, nil
 	default:
-		return os.ReadFile(files[0])
+		return ioutil.ReadFile(files[0])
 	}
 }
 

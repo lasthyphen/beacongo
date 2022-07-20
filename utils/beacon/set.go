@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package beacon
@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
+	"github.com/lasthyphen/beacongo/utils/constants"
 )
 
 var (
@@ -24,8 +25,8 @@ var (
 type Set interface {
 	Add(Beacon) error
 
-	RemoveByID(ids.NodeID) error
-	RemoveByIP(ips.IPPort) error
+	RemoveByID(ids.ShortID) error
+	RemoveByIP(utils.IPDesc) error
 
 	Len() int
 
@@ -34,14 +35,14 @@ type Set interface {
 }
 
 type set struct {
-	ids     map[ids.NodeID]int
+	ids     map[ids.ShortID]int
 	ips     map[string]int
 	beacons []Beacon
 }
 
 func NewSet() Set {
 	return &set{
-		ids: make(map[ids.NodeID]int),
+		ids: make(map[ids.ShortID]int),
 		ips: make(map[string]int),
 	}
 }
@@ -65,7 +66,7 @@ func (s *set) Add(b Beacon) error {
 	return nil
 }
 
-func (s *set) RemoveByID(idToRemove ids.NodeID) error {
+func (s *set) RemoveByID(idToRemove ids.ShortID) error {
 	indexToRemove, exists := s.ids[idToRemove]
 	if !exists {
 		return errUnknownID
@@ -89,7 +90,7 @@ func (s *set) RemoveByID(idToRemove ids.NodeID) error {
 	return nil
 }
 
-func (s *set) RemoveByIP(ip ips.IPPort) error {
+func (s *set) RemoveByIP(ip utils.IPDesc) error {
 	indexToRemove, exists := s.ips[ip.String()]
 	if !exists {
 		return errUnknownIP
@@ -107,10 +108,10 @@ func (s *set) IDsArg() string {
 		return ""
 	}
 	b := s.beacons[0]
-	_, _ = sb.WriteString(b.ID().String())
+	_, _ = sb.WriteString(b.ID().PrefixedString(constants.NodeIDPrefix))
 	for _, b := range s.beacons[1:] {
 		_, _ = sb.WriteString(",")
-		_, _ = sb.WriteString(b.ID().String())
+		_, _ = sb.WriteString(b.ID().PrefixedString(constants.NodeIDPrefix))
 	}
 	return sb.String()
 }

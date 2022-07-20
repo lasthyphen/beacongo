@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package beacon
@@ -10,25 +10,25 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 )
 
 func TestSet(t *testing.T) {
 	assert := assert.New(t)
 
-	id0 := ids.NodeID{0}
-	id1 := ids.NodeID{1}
-	id2 := ids.NodeID{2}
+	id0 := ids.ShortID{0}
+	id1 := ids.ShortID{1}
+	id2 := ids.ShortID{2}
 
-	ip0 := ips.IPPort{
+	ip0 := utils.IPDesc{
 		IP:   net.IPv4zero,
 		Port: 0,
 	}
-	ip1 := ips.IPPort{
+	ip1 := utils.IPDesc{
 		IP:   net.IPv4zero,
 		Port: 1,
 	}
-	ip2 := ips.IPPort{
+	ip2 := utils.IPDesc{
 		IP:   net.IPv4zero,
 		Port: 2,
 	}

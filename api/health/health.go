@@ -1,15 +1,12 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package health
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/lasthyphen/beacongo/utils/logging"
 )
 
 var _ Health = &health{}
@@ -39,13 +36,12 @@ type Reporter interface {
 }
 
 type health struct {
-	log       logging.Logger
 	readiness *worker
 	health    *worker
 	liveness  *worker
 }
 
-func New(log logging.Logger, registerer prometheus.Registerer) (Health, error) {
+func New(registerer prometheus.Registerer) (Health, error) {
 	readinessWorker, err := newWorker("readiness", registerer)
 	if err != nil {
 		return nil, err
@@ -58,7 +54,6 @@ func New(log logging.Logger, registerer prometheus.Registerer) (Health, error) {
 
 	livenessWorker, err := newWorker("liveness", registerer)
 	return &health{
-		log:       log,
 		readiness: readinessWorker,
 		health:    healthWorker,
 		liveness:  livenessWorker,
@@ -78,45 +73,15 @@ func (h *health) RegisterLivenessCheck(name string, checker Checker) error {
 }
 
 func (h *health) Readiness() (map[string]Result, bool) {
-	results, healthy := h.readiness.Results()
-	if healthy {
-		return results, healthy
-	}
-	resultsJSON, err := json.Marshal(results)
-	if err == nil {
-		h.log.Warn("Failing readiness check: %s", string(resultsJSON))
-	} else {
-		h.log.Error("Failed to marshal failing readiness check: %s", err)
-	}
-	return results, false
+	return h.readiness.Results()
 }
 
 func (h *health) Health() (map[string]Result, bool) {
-	results, healthy := h.health.Results()
-	if healthy {
-		return results, healthy
-	}
-	resultsJSON, err := json.Marshal(results)
-	if err == nil {
-		h.log.Warn("Failing health check: %s", string(resultsJSON))
-	} else {
-		h.log.Error("Failed to marshal failing health check: %s", err)
-	}
-	return results, false
+	return h.health.Results()
 }
 
 func (h *health) Liveness() (map[string]Result, bool) {
-	results, healthy := h.liveness.Results()
-	if healthy {
-		return results, healthy
-	}
-	resultsJSON, err := json.Marshal(results)
-	if err == nil {
-		h.log.Warn("Failing liveness check: %s", string(resultsJSON))
-	} else {
-		h.log.Error("Failed to marshal failing liveness check: %s", err)
-	}
-	return results, false
+	return h.liveness.Results()
 }
 
 func (h *health) Start(freq time.Duration) {

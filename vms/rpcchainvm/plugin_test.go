@@ -1,55 +1,36 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpcchainvm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
 
-	gomock "github.com/golang/mock/gomock"
-
+	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
 
-	"github.com/lasthyphen/beacongo/vms/rpcchainvm/grpcutils"
-)
+	"google.golang.org/grpc"
 
-// plugin_test collects objects and helpers generally helpful for various rpc tests
-
-const (
-	chainVMTestKey                                 = "chainVMTest"
-	stateSyncEnabledTestKey                        = "stateSyncEnabledTest"
-	getOngoingSyncStateSummaryTestKey              = "getOngoingSyncStateSummaryTest"
-	getLastStateSummaryTestKey                     = "getLastStateSummaryTest"
-	parseStateSummaryTestKey                       = "parseStateSummaryTest"
-	getStateSummaryTestKey                         = "getStateSummaryTest"
-	acceptStateSummaryTestKey                      = "acceptStateSummaryTest"
-	lastAcceptedBlockPostStateSummaryAcceptTestKey = "lastAcceptedBlockPostStateSummaryAcceptTest"
+	"github.com/lasthyphen/beacongo/api/proto/vmproto"
 )
 
 var (
 	TestHandshake = plugin.HandshakeConfig{
-		ProtocolVersion:  protocolVersion,
+		ProtocolVersion:  1,
 		MagicCookieKey:   "VM_PLUGIN",
 		MagicCookieValue: "dynamic",
 	}
 
-	TestClientPluginMap = map[string]plugin.Plugin{
-		chainVMTestKey: &testVMPlugin{},
+	TestPluginMap = map[string]plugin.Plugin{
+		"vm": &testVMPlugin{},
 	}
 
-	TestServerPluginMap = map[string]func(*testing.T, bool) (plugin.Plugin, *gomock.Controller){
-		chainVMTestKey:                                 chainVMTestPlugin,
-		stateSyncEnabledTestKey:                        stateSyncEnabledTestPlugin,
-		getOngoingSyncStateSummaryTestKey:              getOngoingSyncStateSummaryTestPlugin,
-		getLastStateSummaryTestKey:                     getLastStateSummaryTestPlugin,
-		parseStateSummaryTestKey:                       parseStateSummaryTestPlugin,
-		getStateSummaryTestKey:                         getStateSummaryTestPlugin,
-		acceptStateSummaryTestKey:                      acceptStateSummaryTestPlugin,
-		lastAcceptedBlockPostStateSummaryAcceptTestKey: lastAcceptedBlockPostStateSummaryAcceptTestPlugin,
-	}
+	_ plugin.Plugin     = &testVMPlugin{}
+	_ plugin.GRPCPlugin = &testVMPlugin{}
 )
 
 // helperProcess helps with creating the plugin binary for testing.
@@ -66,7 +47,7 @@ func helperProcess(s ...string) *exec.Cmd {
 	return cmd
 }
 
-func TestHelperProcess(t *testing.T) {
+func TestHelperProcess(*testing.T) {
 	if os.Getenv("TEST_PROCESS") != "1" {
 		return
 	}
@@ -86,24 +67,38 @@ func TestHelperProcess(t *testing.T) {
 		os.Exit(2)
 	}
 
-	plugins := make(map[string]plugin.Plugin)
-	controllersList := make([]*gomock.Controller, 0, len(args))
-	for _, testKey := range args {
-		mockedPlugin, ctrl := TestServerPluginMap[testKey](t, true /*loadExpectations*/)
-		controllersList = append(controllersList, ctrl)
-		plugins[testKey] = mockedPlugin
-	}
+	pluginLogger := hclog.New(&hclog.LoggerOptions{
+		Level:      hclog.Trace,
+		Output:     os.Stderr,
+		JSONFormat: true,
+	})
 
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: TestHandshake,
-		Plugins:         plugins,
+		Plugins: map[string]plugin.Plugin{
+			"vm": NewTestVM(&TestSubnetVM{logger: pluginLogger}),
+		},
 
-		// A non-nil value here enables gRPC serving for this plugin.
-		GRPCServer: grpcutils.NewDefaultServer,
+		// A non-nil value here enables gRPC serving for this plugin...
+		GRPCServer: plugin.DefaultGRPCServer,
 	})
-
-	for _, ctrl := range controllersList {
-		ctrl.Finish()
-	}
 	os.Exit(0)
+}
+
+type testVMPlugin struct {
+	plugin.NetRPCUnsupportedPlugin
+	vm TestVM
+}
+
+func NewTestVM(vm *TestSubnetVM) plugin.Plugin {
+	return &testVMPlugin{vm: vm}
+}
+
+func (p *testVMPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	vmproto.RegisterVMServer(s, NewTestServer(p.vm, broker))
+	return nil
+}
+
+func (p *testVMPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return NewTestClient(vmproto.NewVMClient(c), broker), nil
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package reflectcodec
@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"unicode"
 )
 
 const (
@@ -37,21 +38,17 @@ type StructFielder interface {
 	GetSerializedFields(t reflect.Type) ([]FieldDesc, error)
 }
 
-func NewStructFielder(tagNames []string, maxSliceLen uint32) StructFielder {
+func NewStructFielder(tagName string, maxSliceLen uint32) StructFielder {
 	return &structFielder{
-		tags:                   tagNames,
+		tagName:                tagName,
 		maxSliceLen:            maxSliceLen,
 		serializedFieldIndices: make(map[reflect.Type][]FieldDesc),
 	}
 }
 
 type structFielder struct {
-	lock sync.Mutex
-
-	// multiple tags per field can be specified. A field is serialized/deserialized
-	// if it has at least one of the specified tags.
-	tags []string
-
+	lock        sync.Mutex
+	tagName     string
 	maxSliceLen uint32
 
 	// Key: a struct type
@@ -76,21 +73,10 @@ func (s *structFielder) GetSerializedFields(t reflect.Type) ([]FieldDesc, error)
 	serializedFields := make([]FieldDesc, 0, numFields)
 	for i := 0; i < numFields; i++ { // Go through all fields of this struct
 		field := t.Field(i)
-
-		// Multiple tags per fields can be specified.
-		// Serialize/Deserialize field if it has
-		// any tag with the right value
-		captureField := false
-		for _, tag := range s.tags {
-			if field.Tag.Get(tag) == TagValue {
-				captureField = true
-				break
-			}
-		}
-		if !captureField {
+		if field.Tag.Get(s.tagName) != TagValue { // Skip fields we don't need to serialize
 			continue
 		}
-		if !field.IsExported() { // Can only marshal exported fields
+		if unicode.IsLower(rune(field.Name[0])) { // Can only marshal exported fields
 			return nil, fmt.Errorf("can't marshal un-exported field %s", field.Name)
 		}
 		sliceLenField := field.Tag.Get(SliceLenTagName)

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -10,50 +10,48 @@ import (
 
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/constants"
-
-	pChainValidator "github.com/lasthyphen/beacongo/vms/platformvm/validator"
 )
 
 func TestPrimaryValidatorSet(t *testing.T) {
 	// Initialize the chain state
-	nodeID0 := ids.GenerateTestNodeID()
+	nodeID0 := ids.GenerateTestShortID()
 	node0Weight := uint64(1)
 	vdr0 := &currentValidatorImpl{
 		addValidatorTx: &UnsignedAddValidatorTx{
-			Validator: pChainValidator.Validator{
+			Validator: Validator{
 				Wght: node0Weight,
 			},
 		},
 	}
 
-	nodeID1 := ids.GenerateTestNodeID()
+	nodeID1 := ids.GenerateTestShortID()
 	node1Weight := uint64(2)
 	vdr1 := &currentValidatorImpl{
 		addValidatorTx: &UnsignedAddValidatorTx{
-			Validator: pChainValidator.Validator{
+			Validator: Validator{
 				Wght: node1Weight,
 			},
 		},
 	}
 
-	nodeID2 := ids.GenerateTestNodeID()
+	nodeID2 := ids.GenerateTestShortID()
 	node2Weight := uint64(2)
 	vdr2 := &currentValidatorImpl{
 		addValidatorTx: &UnsignedAddValidatorTx{
-			Validator: pChainValidator.Validator{
+			Validator: Validator{
 				Wght: node2Weight,
 			},
 		},
 	}
 
 	cs := &currentStakerChainStateImpl{
-		validatorsByNodeID: map[ids.NodeID]*currentValidatorImpl{
+		validatorsByNodeID: map[ids.ShortID]*currentValidatorImpl{
 			nodeID0: vdr0,
 			nodeID1: vdr1,
 			nodeID2: vdr2,
 		},
 	}
-	nodeID3 := ids.GenerateTestNodeID()
+	nodeID3 := ids.GenerateTestShortID()
 
 	{
 		// Apply the on-chain validator set to [vdrs]
@@ -100,14 +98,14 @@ func TestSubnetValidatorSet(t *testing.T) {
 	subnetID := ids.GenerateTestID()
 
 	// Initialize the chain state
-	nodeID0 := ids.GenerateTestNodeID()
+	nodeID0 := ids.GenerateTestShortID()
 	node0Weight := uint64(1)
 	vdr0 := &currentValidatorImpl{
 		validatorImpl: validatorImpl{
 			subnets: map[ids.ID]*UnsignedAddSubnetValidatorTx{
 				subnetID: {
-					Validator: pChainValidator.SubnetValidator{
-						Validator: pChainValidator.Validator{
+					Validator: SubnetValidator{
+						Validator: Validator{
 							Wght: node0Weight,
 						},
 					},
@@ -116,14 +114,14 @@ func TestSubnetValidatorSet(t *testing.T) {
 		},
 	}
 
-	nodeID1 := ids.GenerateTestNodeID()
+	nodeID1 := ids.GenerateTestShortID()
 	node1Weight := uint64(2)
 	vdr1 := &currentValidatorImpl{
 		validatorImpl: validatorImpl{
 			subnets: map[ids.ID]*UnsignedAddSubnetValidatorTx{
 				subnetID: {
-					Validator: pChainValidator.SubnetValidator{
-						Validator: pChainValidator.Validator{
+					Validator: SubnetValidator{
+						Validator: Validator{
 							Wght: node1Weight,
 						},
 					},
@@ -132,14 +130,14 @@ func TestSubnetValidatorSet(t *testing.T) {
 		},
 	}
 
-	nodeID2 := ids.GenerateTestNodeID()
+	nodeID2 := ids.GenerateTestShortID()
 	node2Weight := uint64(2)
 	vdr2 := &currentValidatorImpl{
 		validatorImpl: validatorImpl{
 			subnets: map[ids.ID]*UnsignedAddSubnetValidatorTx{
 				subnetID: {
-					Validator: pChainValidator.SubnetValidator{
-						Validator: pChainValidator.Validator{
+					Validator: SubnetValidator{
+						Validator: Validator{
 							Wght: node2Weight,
 						},
 					},
@@ -149,14 +147,14 @@ func TestSubnetValidatorSet(t *testing.T) {
 	}
 
 	cs := &currentStakerChainStateImpl{
-		validatorsByNodeID: map[ids.NodeID]*currentValidatorImpl{
+		validatorsByNodeID: map[ids.ShortID]*currentValidatorImpl{
 			nodeID0: vdr0,
 			nodeID1: vdr1,
 			nodeID2: vdr2,
 		},
 	}
 
-	nodeID3 := ids.GenerateTestNodeID()
+	nodeID3 := ids.GenerateTestShortID()
 
 	{
 		// Apply the on-chain validator set to [vdrs]

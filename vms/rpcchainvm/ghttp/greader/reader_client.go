@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package greader
@@ -8,21 +8,21 @@ import (
 	"errors"
 	"io"
 
-	readerpb "github.com/lasthyphen/beacongo/proto/pb/io/reader"
+	"github.com/lasthyphen/beacongo/api/proto/greaderproto"
 )
 
 var _ io.Reader = &Client{}
 
 // Client is a reader that talks over RPC.
-type Client struct{ client readerpb.ReaderClient }
+type Client struct{ client greaderproto.ReaderClient }
 
 // NewClient returns a reader connected to a remote reader
-func NewClient(client readerpb.ReaderClient) *Client {
+func NewClient(client greaderproto.ReaderClient) *Client {
 	return &Client{client: client}
 }
 
 func (c *Client) Read(p []byte) (int, error) {
-	resp, err := c.client.Read(context.Background(), &readerpb.ReadRequest{
+	resp, err := c.client.Read(context.Background(), &greaderproto.ReadRequest{
 		Length: int32(len(p)),
 	})
 	if err != nil {

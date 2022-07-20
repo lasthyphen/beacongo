@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package p
@@ -9,8 +9,6 @@ import (
 	"github.com/lasthyphen/beacongo/vms/platformvm"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 	"github.com/lasthyphen/beacongo/wallet/subnet/primary/common"
-
-	pChainValidator "github.com/lasthyphen/beacongo/vms/platformvm/validator"
 )
 
 var _ Wallet = &walletWithOptions{}
@@ -37,18 +35,8 @@ func (w *walletWithOptions) Builder() Builder {
 	)
 }
 
-func (w *walletWithOptions) IssueBaseTx(
-	outputs []*djtx.TransferableOutput,
-	options ...common.Option,
-) (ids.ID, error) {
-	return w.Wallet.IssueBaseTx(
-		outputs,
-		common.UnionOptions(w.options, options)...,
-	)
-}
-
 func (w *walletWithOptions) IssueAddValidatorTx(
-	validator *pChainValidator.Validator,
+	validator *platformvm.Validator,
 	rewardsOwner *secp256k1fx.OutputOwners,
 	shares uint32,
 	options ...common.Option,
@@ -62,7 +50,7 @@ func (w *walletWithOptions) IssueAddValidatorTx(
 }
 
 func (w *walletWithOptions) IssueAddSubnetValidatorTx(
-	validator *pChainValidator.SubnetValidator,
+	validator *platformvm.SubnetValidator,
 	options ...common.Option,
 ) (ids.ID, error) {
 	return w.Wallet.IssueAddSubnetValidatorTx(
@@ -72,7 +60,7 @@ func (w *walletWithOptions) IssueAddSubnetValidatorTx(
 }
 
 func (w *walletWithOptions) IssueAddDelegatorTx(
-	validator *pChainValidator.Validator,
+	validator *platformvm.Validator,
 	rewardsOwner *secp256k1fx.OutputOwners,
 	options ...common.Option,
 ) (ids.ID, error) {

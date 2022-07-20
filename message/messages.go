@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lasthyphen/beacongo/ids"
+	"github.com/lasthyphen/beacongo/utils/constants"
 )
 
 var (
@@ -24,7 +25,7 @@ type InboundMessage interface {
 	BytesSavedCompression() int
 	Op() Op
 	Get(Field) interface{}
-	NodeID() ids.NodeID
+	NodeID() ids.ShortID
 	ExpirationTime() time.Time
 	OnFinishedHandling()
 }
@@ -33,7 +34,7 @@ type inboundMessage struct {
 	op                    Op
 	bytesSavedCompression int
 	fields                map[Field]interface{}
-	nodeID                ids.NodeID
+	nodeID                ids.ShortID
 	expirationTime        time.Time
 	onFinishedHandling    func()
 }
@@ -51,7 +52,7 @@ func (inMsg *inboundMessage) BytesSavedCompression() int { return inMsg.bytesSav
 func (inMsg *inboundMessage) Get(field Field) interface{} { return inMsg.fields[field] }
 
 // NodeID returns the node that the msg was sent by.
-func (inMsg *inboundMessage) NodeID() ids.NodeID { return inMsg.nodeID }
+func (inMsg *inboundMessage) NodeID() ids.ShortID { return inMsg.nodeID }
 
 // ExpirationTime returns the time this message doesn't need to be responded to.
 // A zero time means message does not expire.
@@ -67,7 +68,7 @@ func (inMsg *inboundMessage) OnFinishedHandling() {
 
 func (inMsg *inboundMessage) String() string {
 	sb := strings.Builder{}
-	sb.WriteString(fmt.Sprintf("(Op: %s, NodeID: %s", inMsg.op, inMsg.nodeID))
+	sb.WriteString(fmt.Sprintf("(Op: %s, NodeID: %s%s", inMsg.op, constants.NodeIDPrefix, inMsg.nodeID))
 	if requestIDIntf, exists := inMsg.fields[RequestID]; exists {
 		sb.WriteString(fmt.Sprintf(", RequestID: %d", requestIDIntf.(uint32)))
 	}
@@ -84,7 +85,7 @@ func (inMsg *inboundMessage) String() string {
 	case Notify:
 		sb.WriteString(fmt.Sprintf(", Notification: %d)", inMsg.fields[VMMessage].(uint32)))
 	case AppRequest, AppResponse, AppGossip:
-		sb.WriteString(fmt.Sprintf(", len(AppMsg): %d)", len(inMsg.fields[AppBytes].([]byte))))
+		sb.WriteString(fmt.Sprintf(", len(AppMsg): %d)", inMsg.fields[AppBytes].([]byte)))
 	default:
 		sb.WriteString(")")
 	}

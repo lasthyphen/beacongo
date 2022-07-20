@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package proposervm
@@ -11,7 +11,7 @@ import (
 	"github.com/lasthyphen/beacongo/vms/proposervm/block"
 )
 
-var _ PostForkBlock = &postForkOption{}
+var _ Block = &postForkOption{}
 
 // The parent of a *postForkOption must be a *postForkBlock.
 type postForkOption struct {
@@ -29,28 +29,19 @@ func (b *postForkOption) Timestamp() time.Time {
 }
 
 func (b *postForkOption) Accept() error {
-	if err := b.acceptOuterBlk(); err != nil {
-		return err
-	}
-	return b.acceptInnerBlk()
-}
-
-func (b *postForkOption) acceptOuterBlk() error {
-	// Update in-memory references
-	b.status = choices.Accepted
-	b.vm.lastAcceptedHeight = b.Height()
-
 	blkID := b.ID()
-	delete(b.vm.verifiedBlocks, blkID)
-
-	// Persist this block, its height index, and its status
 	if err := b.vm.State.SetLastAccepted(blkID); err != nil {
 		return err
 	}
-	return b.vm.storePostForkBlock(b)
-}
 
-func (b *postForkOption) acceptInnerBlk() error {
+	// Persist this block, its height index, and its status
+	b.status = choices.Accepted
+	if err := b.vm.storePostForkBlock(b); err != nil {
+		return err
+	}
+
+	delete(b.vm.verifiedBlocks, blkID)
+
 	// mark the inner block as accepted and all conflicting inner blocks as
 	// rejected
 	return b.vm.Tree.Accept(b.innerBlk)
@@ -61,16 +52,13 @@ func (b *postForkOption) Reject() error {
 	// in the proposer block that causing this block to be rejected.
 
 	delete(b.vm.verifiedBlocks, b.ID())
+
+	// Persist this block and its status
 	b.status = choices.Rejected
-	return nil
+	return b.vm.storePostForkBlock(b)
 }
 
-func (b *postForkOption) Status() choices.Status {
-	if b.status == choices.Accepted && b.Height() > b.vm.lastAcceptedHeight {
-		return choices.Processing
-	}
-	return b.status
-}
+func (b *postForkOption) Status() choices.Status { return b.status }
 
 func (b *postForkOption) Parent() ids.ID {
 	return b.ParentID()

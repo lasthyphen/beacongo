@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avalanche
@@ -12,7 +12,7 @@ import (
 // Voter records chits received from [vdr] once its dependencies are met.
 type voter struct {
 	t         *Transitive
-	vdr       ids.NodeID
+	vdr       ids.ShortID
 	requestID uint32
 	response  []ids.ID
 	deps      ids.Set

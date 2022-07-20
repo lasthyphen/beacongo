@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -7,17 +7,19 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
+	"github.com/lasthyphen/beacongo/codec"
+	"github.com/lasthyphen/beacongo/codec/linearcodec"
+	"github.com/lasthyphen/beacongo/codec/reflectcodec"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
 	"github.com/lasthyphen/beacongo/utils/json"
+	"github.com/lasthyphen/beacongo/utils/wrappers"
 	"github.com/lasthyphen/beacongo/vms/avm"
-	"github.com/lasthyphen/beacongo/vms/avm/fxs"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/nftfx"
 	"github.com/lasthyphen/beacongo/vms/platformvm"
 	"github.com/lasthyphen/beacongo/vms/propertyfx"
@@ -26,6 +28,7 @@ import (
 
 const (
 	defaultEncoding    = formatting.Hex
+	codecVersion       = 0
 	configChainIDAlias = "X"
 )
 
@@ -59,7 +62,7 @@ func validateInitialStakedFunds(config *Config) error {
 
 	for _, staker := range config.InitialStakedFunds {
 		if initialStakedFundsSet.Contains(staker) {
-			djtxAddr, err := address.Format(
+			djtxAddr, err := formatting.FormatAddress(
 				configChainIDAlias,
 				constants.GetHRP(config.NetworkID),
 				staker.Bytes(),
@@ -79,7 +82,7 @@ func validateInitialStakedFunds(config *Config) error {
 		initialStakedFundsSet.Add(staker)
 
 		if !allocationSet.Contains(staker) {
-			djtxAddr, err := address.Format(
+			djtxAddr, err := formatting.FormatAddress(
 				configChainIDAlias,
 				constants.GetHRP(config.NetworkID),
 				staker.Bytes(),
@@ -274,7 +277,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		sortXAllocation(xAllocations)
 
 		for _, allocation := range xAllocations {
-			addr, err := address.FormatBech32(hrp, allocation.DJTXAddr.Bytes())
+			addr, err := formatting.FormatBech32(hrp, allocation.DJTXAddr.Bytes())
 			if err != nil {
 				return nil, ids.ID{}, err
 			}
@@ -337,7 +340,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 			skippedAllocations = append(skippedAllocations, allocation)
 			continue
 		}
-		addr, err := address.FormatBech32(hrp, allocation.DJTXAddr.Bytes())
+		addr, err := formatting.FormatBech32(hrp, allocation.DJTXAddr.Bytes())
 		if err != nil {
 			return nil, ids.ID{}, err
 		}
@@ -368,14 +371,14 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 		endStakingTime := endStakingTime.Add(-stakingOffset)
 		stakingOffset += time.Duration(config.InitialStakeDurationOffset) * time.Second
 
-		destAddrStr, err := address.FormatBech32(hrp, staker.RewardAddress.Bytes())
+		destAddrStr, err := formatting.FormatBech32(hrp, staker.RewardAddress.Bytes())
 		if err != nil {
 			return nil, ids.ID{}, err
 		}
 
 		utxos := []platformvm.APIUTXO(nil)
 		for _, allocation := range nodeAllocations {
-			addr, err := address.FormatBech32(hrp, allocation.DJTXAddr.Bytes())
+			addr, err := formatting.FormatBech32(hrp, allocation.DJTXAddr.Bytes())
 			if err != nil {
 				return nil, ids.ID{}, err
 			}
@@ -401,7 +404,7 @@ func FromConfig(config *Config) ([]byte, ids.ID, error) {
 				APIStaker: platformvm.APIStaker{
 					StartTime: json.Uint64(genesisTime.Unix()),
 					EndTime:   json.Uint64(endStakingTime.Unix()),
-					NodeID:    staker.NodeID,
+					NodeID:    staker.NodeID.PrefixedString(constants.NodeIDPrefix),
 				},
 				RewardOwner: &platformvm.APIOwner{
 					Threshold: 1,
@@ -533,28 +536,47 @@ func VMGenesis(genesisBytes []byte, vmID ids.ID) (*platformvm.Tx, error) {
 }
 
 func DJTXAssetID(avmGenesisBytes []byte) (ids.ID, error) {
-	parser, err := txs.NewParser([]fxs.Fx{
-		&secp256k1fx.Fx{},
-	})
-	if err != nil {
-		return ids.Empty, err
+	c := linearcodec.New(reflectcodec.DefaultTagName, 1<<20)
+	m := codec.NewManager(math.MaxInt32)
+	errs := wrappers.Errs{}
+	errs.Add(
+		c.RegisterType(&avm.BaseTx{}),
+		c.RegisterType(&avm.CreateAssetTx{}),
+		c.RegisterType(&avm.OperationTx{}),
+		c.RegisterType(&avm.ImportTx{}),
+		c.RegisterType(&avm.ExportTx{}),
+		c.RegisterType(&secp256k1fx.TransferInput{}),
+		c.RegisterType(&secp256k1fx.MintOutput{}),
+		c.RegisterType(&secp256k1fx.TransferOutput{}),
+		c.RegisterType(&secp256k1fx.MintOperation{}),
+		c.RegisterType(&secp256k1fx.Credential{}),
+		m.RegisterCodec(codecVersion, c),
+	)
+	if errs.Errored() {
+		return ids.ID{}, errs.Err
 	}
 
-	genesisCodec := parser.GenesisCodec()
 	genesis := avm.Genesis{}
-	if _, err := genesisCodec.Unmarshal(avmGenesisBytes, &genesis); err != nil {
-		return ids.Empty, err
+	if _, err := m.Unmarshal(avmGenesisBytes, &genesis); err != nil {
+		return ids.ID{}, err
 	}
 
 	if len(genesis.Txs) == 0 {
-		return ids.Empty, errNoTxs
+		return ids.ID{}, errNoTxs
 	}
 	genesisTx := genesis.Txs[0]
 
-	tx := txs.Tx{UnsignedTx: &genesisTx.CreateAssetTx}
-	if err := parser.InitializeGenesisTx(&tx); err != nil {
-		return ids.Empty, err
+	tx := avm.Tx{UnsignedTx: &genesisTx.CreateAssetTx}
+	unsignedBytes, err := m.Marshal(codecVersion, tx.UnsignedTx)
+	if err != nil {
+		return ids.ID{}, err
 	}
+	signedBytes, err := m.Marshal(codecVersion, &tx)
+	if err != nil {
+		return ids.ID{}, err
+	}
+	tx.Initialize(unsignedBytes, signedBytes)
+
 	return tx.ID(), nil
 }
 

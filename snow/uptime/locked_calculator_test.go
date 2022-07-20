@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package uptime
@@ -22,7 +22,7 @@ func TestLockedCalculator(t *testing.T) {
 	assert.NotNil(t)
 
 	// Should still error because ctx is nil
-	nodeID := ids.GenerateTestNodeID()
+	nodeID := ids.GenerateTestShortID()
 	_, _, err := lc.CalculateUptime(nodeID)
 	assert.EqualValues(errNotReady, err)
 	_, err = lc.CalculateUptimePercent(nodeID)

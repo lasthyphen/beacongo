@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package logging
@@ -6,7 +6,10 @@ package logging
 import "testing"
 
 func TestLog(t *testing.T) {
-	log := NewLogger(false, "", NewWrappedCore(Info, Discard, Plain.ConsoleEncoder()))
+	log, err := NewTestLog(DefaultConfig)
+	if err != nil {
+		t.Fatalf("Error creating log: %s", err)
+	}
 
 	recovered := new(bool)
 	panicFunc := func() {

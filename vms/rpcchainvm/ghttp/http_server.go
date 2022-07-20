@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package ghttp
@@ -13,33 +13,36 @@ import (
 
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/hashicorp/go-plugin"
+
+	"github.com/lasthyphen/beacongo/api/proto/ghttpproto"
+	"github.com/lasthyphen/beacongo/api/proto/gresponsewriterproto"
 	"github.com/lasthyphen/beacongo/vms/rpcchainvm/ghttp/gresponsewriter"
 	"github.com/lasthyphen/beacongo/vms/rpcchainvm/grpcutils"
-
-	httppb "github.com/lasthyphen/beacongo/proto/pb/http"
-	responsewriterpb "github.com/lasthyphen/beacongo/proto/pb/http/responsewriter"
 )
 
 var (
-	_ httppb.HTTPServer   = &Server{}
-	_ http.ResponseWriter = &ResponseWriter{}
+	_ ghttpproto.HTTPServer = &Server{}
+	_ http.ResponseWriter   = &ResponseWriter{}
 )
 
 // Server is an http.Handler that is managed over RPC.
 type Server struct {
-	httppb.UnsafeHTTPServer
+	ghttpproto.UnimplementedHTTPServer
 	handler http.Handler
+	broker  *plugin.GRPCBroker
 }
 
 // NewServer returns an http.Handler instance managed remotely
-func NewServer(handler http.Handler) *Server {
+func NewServer(handler http.Handler, broker *plugin.GRPCBroker) *Server {
 	return &Server{
 		handler: handler,
+		broker:  broker,
 	}
 }
 
-func (s *Server) Handle(ctx context.Context, req *httppb.HTTPRequest) (*emptypb.Empty, error) {
-	clientConn, err := grpcutils.Dial(req.ResponseWriter.ServerAddr)
+func (s *Server) Handle(ctx context.Context, req *ghttpproto.HTTPRequest) (*emptypb.Empty, error) {
+	readWriteConn, err := s.broker.Dial(req.ResponseWriter.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +52,7 @@ func (s *Server) Handle(ctx context.Context, req *httppb.HTTPRequest) (*emptypb.
 		writerHeaders[elem.Key] = elem.Values
 	}
 
-	writer := gresponsewriter.NewClient(writerHeaders, responsewriterpb.NewWriterClient(clientConn))
+	writer := gresponsewriter.NewClient(writerHeaders, gresponsewriterproto.NewWriterClient(readWriteConn), s.broker)
 
 	// create the request with the current context
 	request, err := http.NewRequestWithContext(
@@ -139,12 +142,12 @@ func (s *Server) Handle(ctx context.Context, req *httppb.HTTPRequest) (*emptypb.
 
 	s.handler.ServeHTTP(writer, request)
 
-	return &emptypb.Empty{}, clientConn.Close()
+	return &emptypb.Empty{}, readWriteConn.Close()
 }
 
 // HandleSimple handles http requests over http2 using a simple request response model.
 // Websockets are not supported. Based on https://www.weave.works/blog/turtles-way-http-grpc/
-func (s *Server) HandleSimple(ctx context.Context, r *httppb.HandleSimpleHTTPRequest) (*httppb.HandleSimpleHTTPResponse, error) {
+func (s *Server) HandleSimple(ctx context.Context, r *ghttpproto.HandleSimpleHTTPRequest) (*ghttpproto.HandleSimpleHTTPResponse, error) {
 	req, err := http.NewRequest(r.Method, r.Url, bytes.NewBuffer(r.Body))
 	if err != nil {
 		return nil, err
@@ -159,7 +162,7 @@ func (s *Server) HandleSimple(ctx context.Context, r *httppb.HandleSimpleHTTPReq
 	w := newResponseWriter()
 	s.handler.ServeHTTP(w, req)
 
-	resp := &httppb.HandleSimpleHTTPResponse{
+	resp := &ghttpproto.HandleSimpleHTTPResponse{
 		Code:    int32(w.statusCode),
 		Headers: grpcutils.GetHTTPHeader(w.Header()),
 		Body:    w.body.Bytes(),

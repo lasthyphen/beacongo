@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package timeout
@@ -46,7 +46,7 @@ func (m *metrics) RegisterChain(ctx *snow.ConsensusContext) error {
 }
 
 // Record that a response of type [op] took [latency]
-func (m *metrics) Observe(nodeID ids.NodeID, chainID ids.ID, op message.Op, latency time.Duration) {
+func (m *metrics) Observe(validatorID ids.ShortID, chainID ids.ID, op message.Op, latency time.Duration) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -55,7 +55,7 @@ func (m *metrics) Observe(nodeID ids.NodeID, chainID ids.ID, op message.Op, late
 		// TODO should this log an error?
 		return
 	}
-	cm.observe(nodeID, op, latency)
+	cm.observe(validatorID, op, latency)
 }
 
 // chainMetrics contains message response time metrics for a chain
@@ -110,7 +110,7 @@ func newChainMetrics(ctx *snow.ConsensusContext, summaryEnabled bool) (*chainMet
 	return cm, errs.Err
 }
 
-func (cm *chainMetrics) observe(nodeID ids.NodeID, op message.Op, latency time.Duration) {
+func (cm *chainMetrics) observe(validatorID ids.ShortID, op message.Op, latency time.Duration) {
 	lat := float64(latency)
 	if msg, exists := cm.messageLatencies[op]; exists {
 		msg.Observe(lat)
@@ -121,7 +121,7 @@ func (cm *chainMetrics) observe(nodeID ids.NodeID, op message.Op, latency time.D
 	}
 
 	labels := prometheus.Labels{
-		validatorIDLabel: nodeID.String(),
+		validatorIDLabel: validatorID.String(),
 	}
 
 	msg, exists := cm.messageSummaries[op]

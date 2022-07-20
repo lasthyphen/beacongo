@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package x
@@ -9,7 +9,7 @@ import (
 	stdcontext "context"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
+	"github.com/lasthyphen/beacongo/vms/avm"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 )
 
@@ -29,7 +29,7 @@ type Backend interface {
 	BuilderBackend
 	SignerBackend
 
-	AcceptTx(ctx stdcontext.Context, tx *txs.Tx) error
+	AcceptTx(ctx stdcontext.Context, tx *avm.Tx) error
 }
 
 type backend struct {
@@ -48,18 +48,17 @@ func NewBackend(ctx Context, chainID ids.ID, utxos ChainUTXOs) Backend {
 	}
 }
 
-// TODO: implement txs.Visitor here
-func (b *backend) AcceptTx(ctx stdcontext.Context, tx *txs.Tx) error {
+func (b *backend) AcceptTx(ctx stdcontext.Context, tx *avm.Tx) error {
 	switch utx := tx.UnsignedTx.(type) {
-	case *txs.BaseTx, *txs.CreateAssetTx, *txs.OperationTx:
-	case *txs.ImportTx:
+	case *avm.BaseTx, *avm.CreateAssetTx, *avm.OperationTx:
+	case *avm.ImportTx:
 		for _, input := range utx.ImportedIns {
 			utxoID := input.UTXOID.InputID()
 			if err := b.RemoveUTXO(ctx, utx.SourceChain, utxoID); err != nil {
 				return err
 			}
 		}
-	case *txs.ExportTx:
+	case *avm.ExportTx:
 		txID := tx.ID()
 		for i, out := range utx.ExportedOuts {
 			err := b.AddUTXO(

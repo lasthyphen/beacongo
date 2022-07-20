@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -8,7 +8,6 @@ import (
 
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
 	"github.com/lasthyphen/beacongo/utils/json"
 )
 
@@ -29,7 +28,7 @@ func TestBuildGenesis(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		addrMap[addrStr], err = address.FormatBech32(testHRP, b)
+		addrMap[addrStr], err = formatting.FormatBech32(testHRP, b)
 		if err != nil {
 			t.Fatal(err)
 		}

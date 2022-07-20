@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package database
@@ -35,6 +35,7 @@ var Tests = []func(t *testing.T, db Database){
 	TestIteratorClosed,
 	TestIteratorError,
 	TestIteratorErrorAfterRelease,
+	TestStatNoPanic,
 	TestCompactNoPanic,
 	TestMemorySafetyDatabase,
 	TestMemorySafetyBatch,
@@ -1050,6 +1051,38 @@ func TestIteratorErrorAfterRelease(t *testing.T, db Database) {
 	if err := iterator.Error(); err != ErrClosed {
 		t.Fatalf("Expected %s on iterator.Error", ErrClosed)
 	}
+}
+
+// TestStatNoPanic tests to make sure that Stat never panics.
+func TestStatNoPanic(t *testing.T, db Database) {
+	key1 := []byte("hello1")
+	value1 := []byte("world1")
+
+	key2 := []byte("z")
+	value2 := []byte("world2")
+
+	key3 := []byte("hello3")
+	value3 := []byte("world3")
+
+	if err := db.Put(key1, value1); err != nil {
+		t.Fatalf("Unexpected error on batch.Put: %s", err)
+	} else if err := db.Put(key2, value2); err != nil {
+		t.Fatalf("Unexpected error on batch.Put: %s", err)
+	} else if err := db.Put(key3, value3); err != nil {
+		t.Fatalf("Unexpected error on batch.Put: %s", err)
+	}
+
+	// Stat could error or not redpending on the implementation, but it
+	// shouldn't panic
+	_, _ = db.Stat("")
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("Unexpected error on db.Close: %s", err)
+	}
+
+	// Stat could error or not redpending on the implementation, but it
+	// shouldn't panic
+	_, _ = db.Stat("")
 }
 
 // TestCompactNoPanic tests to make sure compact never panics.

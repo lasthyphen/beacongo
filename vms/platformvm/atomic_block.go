@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -118,7 +118,7 @@ func (ab *AtomicBlock) Verify() error {
 	onAccept, err := tx.AtomicExecute(ab.vm, parentState, &ab.Tx)
 	if err != nil {
 		txID := tx.ID()
-		ab.vm.blockBuilder.MarkDropped(txID, err.Error()) // cache tx as dropped
+		ab.vm.droppedTxCache.Put(txID, err.Error()) // cache tx as dropped
 		return fmt.Errorf("tx %s failed semantic verification: %w", txID, err)
 	}
 	onAccept.AddTx(&ab.Tx, status.Committed)

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package indexer
@@ -7,12 +7,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/json"
 	"github.com/lasthyphen/beacongo/utils/rpc"
 )
 
+// Interface compliance
 var _ Client = &client{}
 
 // Client interface for Avalanche Indexer API Endpoint
@@ -21,17 +20,17 @@ type Client interface {
 	// If [n] == 0, returns an empty response (i.e. null).
 	// If [startIndex] > the last accepted index, returns an error (unless the above apply.)
 	// If we run out of transactions, returns the ones fetched before running out.
-	GetContainerRange(ctx context.Context, startIndex uint64, numToFetch int, options ...rpc.Option) ([]Container, error)
+	GetContainerRange(context.Context, *GetContainerRangeArgs) ([]Container, error)
 	// Get a container by its index
-	GetContainerByIndex(ctx context.Context, index uint64, options ...rpc.Option) (Container, error)
+	GetContainerByIndex(context.Context, *GetContainer) (Container, error)
 	// Get the most recently accepted container
-	GetLastAccepted(context.Context, ...rpc.Option) (Container, error)
+	GetLastAccepted(context.Context, *GetLastAcceptedArgs) (Container, error)
 	// Returns 1 less than the number of containers accepted on this chain
-	GetIndex(ctx context.Context, containerID ids.ID, options ...rpc.Option) (uint64, error)
+	GetIndex(context.Context, *GetIndexArgs) (uint64, error)
 	// Returns true if the given container is accepted
-	IsAccepted(ctx context.Context, containerID ids.ID, options ...rpc.Option) (bool, error)
+	IsAccepted(context.Context, *GetIndexArgs) (bool, error)
 	// Get a container by its index
-	GetContainerByID(ctx context.Context, containerID ids.ID, options ...rpc.Option) (Container, error)
+	GetContainerByID(context.Context, *GetIndexArgs) (Container, error)
 }
 
 // Client implementation for Avalanche Indexer API Endpoint
@@ -39,29 +38,20 @@ type client struct {
 	requester rpc.EndpointRequester
 }
 
-// NewClient creates a client that can interact with an index via HTTP API
-// calls.
-// [uri] is the path to make API calls to.
-// For example:
-//   - http://1.2.3.4:9650/ext/index/C/block
-//   - http://1.2.3.4:9650/ext/index/X/tx
-func NewClient(uri string) Client {
+// NewClient creates a client that can interact with an index via HTTP API calls.
+// [host] is the host to make API calls to (e.g. http://1.2.3.4:9650).
+// [endpoint] is the path to the index endpoint (e.g. /ext/index/C/block or /ext/index/X/tx).
+func NewClient(host, endpoint string) Client {
 	return &client{
-		requester: rpc.NewEndpointRequester(uri, "index"),
+		requester: rpc.NewEndpointRequester(host, endpoint, "index"),
 	}
 }
 
-func (c *client) GetContainerRange(ctx context.Context, startIndex uint64, numToFetch int, options ...rpc.Option) ([]Container, error) {
+func (c *client) GetContainerRange(ctx context.Context, args *GetContainerRangeArgs) ([]Container, error) {
 	var fcs GetContainerRangeResponse
-	err := c.requester.SendRequest(ctx, "getContainerRange", &GetContainerRangeArgs{
-		StartIndex: json.Uint64(startIndex),
-		NumToFetch: json.Uint64(numToFetch),
-		Encoding:   formatting.Hex,
-	}, &fcs, options...)
-	if err != nil {
+	if err := c.requester.SendRequest(ctx, "getContainerRange", args, &fcs); err != nil {
 		return nil, err
 	}
-
 	response := make([]Container, len(fcs.Containers))
 	for i, resp := range fcs.Containers {
 		containerBytes, err := formatting.Decode(resp.Encoding, resp.Bytes)
@@ -77,16 +67,11 @@ func (c *client) GetContainerRange(ctx context.Context, startIndex uint64, numTo
 	return response, nil
 }
 
-func (c *client) GetContainerByIndex(ctx context.Context, index uint64, options ...rpc.Option) (Container, error) {
+func (c *client) GetContainerByIndex(ctx context.Context, args *GetContainer) (Container, error) {
 	var fc FormattedContainer
-	err := c.requester.SendRequest(ctx, "getContainerByIndex", &GetContainerByIndexArgs{
-		Index:    json.Uint64(index),
-		Encoding: formatting.Hex,
-	}, &fc, options...)
-	if err != nil {
+	if err := c.requester.SendRequest(ctx, "getContainerByIndex", args, &fc); err != nil {
 		return Container{}, err
 	}
-
 	containerBytes, err := formatting.Decode(fc.Encoding, fc.Bytes)
 	if err != nil {
 		return Container{}, fmt.Errorf("couldn't decode container %s: %w", fc.ID, err)
@@ -98,15 +83,11 @@ func (c *client) GetContainerByIndex(ctx context.Context, index uint64, options 
 	}, nil
 }
 
-func (c *client) GetLastAccepted(ctx context.Context, options ...rpc.Option) (Container, error) {
+func (c *client) GetLastAccepted(ctx context.Context, args *GetLastAcceptedArgs) (Container, error) {
 	var fc FormattedContainer
-	err := c.requester.SendRequest(ctx, "getLastAccepted", &GetLastAcceptedArgs{
-		Encoding: formatting.Hex,
-	}, &fc, options...)
-	if err != nil {
+	if err := c.requester.SendRequest(ctx, "getLastAccepted", args, &fc); err != nil {
 		return Container{}, nil
 	}
-
 	containerBytes, err := formatting.Decode(fc.Encoding, fc.Bytes)
 	if err != nil {
 		return Container{}, fmt.Errorf("couldn't decode container %s: %w", fc.ID, err)
@@ -118,32 +99,23 @@ func (c *client) GetLastAccepted(ctx context.Context, options ...rpc.Option) (Co
 	}, nil
 }
 
-func (c *client) GetIndex(ctx context.Context, containerID ids.ID, options ...rpc.Option) (uint64, error) {
+func (c *client) GetIndex(ctx context.Context, args *GetIndexArgs) (uint64, error) {
 	var index GetIndexResponse
-	err := c.requester.SendRequest(ctx, "getIndex", &GetIndexArgs{
-		ContainerID: containerID,
-	}, &index, options...)
+	err := c.requester.SendRequest(ctx, "getIndex", args, &index)
 	return uint64(index.Index), err
 }
 
-func (c *client) IsAccepted(ctx context.Context, containerID ids.ID, options ...rpc.Option) (bool, error) {
-	var res IsAcceptedResponse
-	err := c.requester.SendRequest(ctx, "isAccepted", &IsAcceptedArgs{
-		ContainerID: containerID,
-	}, &res, options...)
-	return res.IsAccepted, err
+func (c *client) IsAccepted(ctx context.Context, args *GetIndexArgs) (bool, error) {
+	var isAccepted bool
+	err := c.requester.SendRequest(ctx, "isAccepted", args, &isAccepted)
+	return isAccepted, err
 }
 
-func (c *client) GetContainerByID(ctx context.Context, containerID ids.ID, options ...rpc.Option) (Container, error) {
+func (c *client) GetContainerByID(ctx context.Context, args *GetIndexArgs) (Container, error) {
 	var fc FormattedContainer
-	err := c.requester.SendRequest(ctx, "getContainerByID", &GetContainerByIDArgs{
-		ContainerID: containerID,
-		Encoding:    formatting.Hex,
-	}, &fc, options...)
-	if err != nil {
+	if err := c.requester.SendRequest(ctx, "getContainerByID", args, &fc); err != nil {
 		return Container{}, err
 	}
-
 	containerBytes, err := formatting.Decode(fc.Encoding, fc.Bytes)
 	if err != nil {
 		return Container{}, fmt.Errorf("couldn't decode container %s: %w", fc.ID, err)

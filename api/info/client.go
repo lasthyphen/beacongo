@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package info
@@ -10,21 +10,22 @@ import (
 	"github.com/lasthyphen/beacongo/utils/rpc"
 )
 
+// Interface compliance
 var _ Client = &client{}
 
 // Client interface for an Info API Client
 type Client interface {
-	GetNodeVersion(context.Context, ...rpc.Option) (*GetNodeVersionReply, error)
-	GetNodeID(context.Context, ...rpc.Option) (ids.NodeID, error)
-	GetNodeIP(context.Context, ...rpc.Option) (string, error)
-	GetNetworkID(context.Context, ...rpc.Option) (uint32, error)
-	GetNetworkName(context.Context, ...rpc.Option) (string, error)
-	GetBlockchainID(context.Context, string, ...rpc.Option) (ids.ID, error)
-	Peers(context.Context, ...rpc.Option) ([]Peer, error)
-	IsBootstrapped(context.Context, string, ...rpc.Option) (bool, error)
-	GetTxFee(context.Context, ...rpc.Option) (*GetTxFeeResponse, error)
-	Uptime(context.Context, ...rpc.Option) (*UptimeResponse, error)
-	GetVMs(context.Context, ...rpc.Option) (map[ids.ID][]string, error)
+	GetNodeVersion(context.Context) (*GetNodeVersionReply, error)
+	GetNodeID(context.Context) (string, error)
+	GetNodeIP(context.Context) (string, error)
+	GetNetworkID(context.Context) (uint32, error)
+	GetNetworkName(context.Context) (string, error)
+	GetBlockchainID(context.Context, string) (ids.ID, error)
+	Peers(context.Context) ([]Peer, error)
+	IsBootstrapped(context.Context, string) (bool, error)
+	GetTxFee(context.Context) (*GetTxFeeResponse, error)
+	Uptime(context.Context) (*UptimeResponse, error)
+	GetVMs(context.Context) (map[ids.ID][]string, error)
 }
 
 // Client implementation for an Info API Client
@@ -34,78 +35,77 @@ type client struct {
 
 // NewClient returns a new Info API Client
 func NewClient(uri string) Client {
-	return &client{requester: rpc.NewEndpointRequester(
-		uri+"/ext/info",
-		"info",
-	)}
+	return &client{
+		requester: rpc.NewEndpointRequester(uri, "/ext/info", "info"),
+	}
 }
 
-func (c *client) GetNodeVersion(ctx context.Context, options ...rpc.Option) (*GetNodeVersionReply, error) {
+func (c *client) GetNodeVersion(ctx context.Context) (*GetNodeVersionReply, error) {
 	res := &GetNodeVersionReply{}
-	err := c.requester.SendRequest(ctx, "getNodeVersion", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getNodeVersion", struct{}{}, res)
 	return res, err
 }
 
-func (c *client) GetNodeID(ctx context.Context, options ...rpc.Option) (ids.NodeID, error) {
+func (c *client) GetNodeID(ctx context.Context) (string, error) {
 	res := &GetNodeIDReply{}
-	err := c.requester.SendRequest(ctx, "getNodeID", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getNodeID", struct{}{}, res)
 	return res.NodeID, err
 }
 
-func (c *client) GetNodeIP(ctx context.Context, options ...rpc.Option) (string, error) {
+func (c *client) GetNodeIP(ctx context.Context) (string, error) {
 	res := &GetNodeIPReply{}
-	err := c.requester.SendRequest(ctx, "getNodeIP", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getNodeIP", struct{}{}, res)
 	return res.IP, err
 }
 
-func (c *client) GetNetworkID(ctx context.Context, options ...rpc.Option) (uint32, error) {
+func (c *client) GetNetworkID(ctx context.Context) (uint32, error) {
 	res := &GetNetworkIDReply{}
-	err := c.requester.SendRequest(ctx, "getNetworkID", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getNetworkID", struct{}{}, res)
 	return uint32(res.NetworkID), err
 }
 
-func (c *client) GetNetworkName(ctx context.Context, options ...rpc.Option) (string, error) {
+func (c *client) GetNetworkName(ctx context.Context) (string, error) {
 	res := &GetNetworkNameReply{}
-	err := c.requester.SendRequest(ctx, "getNetworkName", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getNetworkName", struct{}{}, res)
 	return res.NetworkName, err
 }
 
-func (c *client) GetBlockchainID(ctx context.Context, alias string, options ...rpc.Option) (ids.ID, error) {
+func (c *client) GetBlockchainID(ctx context.Context, alias string) (ids.ID, error) {
 	res := &GetBlockchainIDReply{}
 	err := c.requester.SendRequest(ctx, "getBlockchainID", &GetBlockchainIDArgs{
 		Alias: alias,
-	}, res, options...)
+	}, res)
 	return res.BlockchainID, err
 }
 
-func (c *client) Peers(ctx context.Context, options ...rpc.Option) ([]Peer, error) {
+func (c *client) Peers(ctx context.Context) ([]Peer, error) {
 	res := &PeersReply{}
-	err := c.requester.SendRequest(ctx, "peers", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "peers", struct{}{}, res)
 	return res.Peers, err
 }
 
-func (c *client) IsBootstrapped(ctx context.Context, chainID string, options ...rpc.Option) (bool, error) {
+func (c *client) IsBootstrapped(ctx context.Context, chainID string) (bool, error) {
 	res := &IsBootstrappedResponse{}
 	err := c.requester.SendRequest(ctx, "isBootstrapped", &IsBootstrappedArgs{
 		Chain: chainID,
-	}, res, options...)
+	}, res)
 	return res.IsBootstrapped, err
 }
 
-func (c *client) GetTxFee(ctx context.Context, options ...rpc.Option) (*GetTxFeeResponse, error) {
+func (c *client) GetTxFee(ctx context.Context) (*GetTxFeeResponse, error) {
 	res := &GetTxFeeResponse{}
-	err := c.requester.SendRequest(ctx, "getTxFee", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getTxFee", struct{}{}, res)
 	return res, err
 }
 
-func (c *client) Uptime(ctx context.Context, options ...rpc.Option) (*UptimeResponse, error) {
+func (c *client) Uptime(ctx context.Context) (*UptimeResponse, error) {
 	res := &UptimeResponse{}
-	err := c.requester.SendRequest(ctx, "uptime", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "uptime", struct{}{}, res)
 	return res, err
 }
 
-func (c *client) GetVMs(ctx context.Context, options ...rpc.Option) (map[ids.ID][]string, error) {
+func (c *client) GetVMs(ctx context.Context) (map[ids.ID][]string, error) {
 	res := &GetVMsReply{}
-	err := c.requester.SendRequest(ctx, "getVMs", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "getVMs", struct{}{}, res)
 	return res.VMs, err
 }

@@ -1,16 +1,16 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
-
-	stdjson "encoding/json"
 
 	"github.com/golang/mock/gomock"
 
@@ -25,13 +25,13 @@ import (
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/crypto"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/json"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/version"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/platformvm/status"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 
+	cjson "github.com/lasthyphen/beacongo/utils/json"
 	vmkeystore "github.com/lasthyphen/beacongo/vms/components/keystore"
 )
 
@@ -79,7 +79,7 @@ func defaultAddress(t *testing.T, service *Service) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pk, err := testKeyfactory.ToPrivateKey(testPrivateKey)
+	pk, err := service.vm.factory.ToPrivateKey(testPrivateKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,9 +90,9 @@ func defaultAddress(t *testing.T, service *Service) {
 }
 
 func TestAddValidator(t *testing.T) {
-	expectedJSONString := `{"username":"","password":"","from":null,"changeAddr":"","txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"NodeID-111111111111111111116DBWJs","rewardAddress":"","delegationFeeRate":"0.0000"}`
+	expectedJSONString := `{"username":"","password":"","from":null,"changeAddr":"","txID":"11111111111111111111111111111111LpoYY","startTime":"0","endTime":"0","nodeID":"","rewardAddress":"","delegationFeeRate":"0.0000"}`
 	args := AddValidatorArgs{}
-	bytes, err := stdjson.Marshal(&args)
+	bytes, err := json.Marshal(&args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,11 +105,11 @@ func TestAddValidator(t *testing.T) {
 func TestCreateBlockchainArgsParsing(t *testing.T) {
 	jsonString := `{"vmID":"lol","fxIDs":["secp256k1"], "name":"awesome", "username":"bob loblaw", "password":"yeet", "genesisData":"SkB92YpWm4Q2iPnLGCuDPZPgUQMxajqQQuz91oi3xD984f8r"}`
 	args := CreateBlockchainArgs{}
-	err := stdjson.Unmarshal([]byte(jsonString), &args)
+	err := json.Unmarshal([]byte(jsonString), &args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = stdjson.Marshal(args.GenesisData); err != nil {
+	if _, err = json.Marshal(args.GenesisData); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -117,7 +117,7 @@ func TestCreateBlockchainArgsParsing(t *testing.T) {
 func TestExportKey(t *testing.T) {
 	jsonString := `{"username":"ScoobyUser","password":"ShaggyPassword1Zoinks!","address":"` + testAddress + `"}`
 	args := ExportKeyArgs{}
-	err := stdjson.Unmarshal([]byte(jsonString), &args)
+	err := json.Unmarshal([]byte(jsonString), &args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,15 +137,23 @@ func TestExportKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(testPrivateKey, reply.PrivateKey.Bytes()) {
-		t.Fatalf("Expected %v, got %v", testPrivateKey, reply.PrivateKey.Bytes())
+	if !strings.HasPrefix(reply.PrivateKey, constants.SecretKeyPrefix) {
+		t.Fatalf("ExportKeyReply is missing secret key prefix: %s", constants.SecretKeyPrefix)
+	}
+	privateKeyString := strings.TrimPrefix(reply.PrivateKey, constants.SecretKeyPrefix)
+	privKeyBytes, err := formatting.Decode(formatting.CB58, privateKeyString)
+	if err != nil {
+		t.Fatalf("Failed to parse key: %s", err)
+	}
+	if !bytes.Equal(testPrivateKey, privKeyBytes) {
+		t.Fatalf("Expected %v, got %v", testPrivateKey, privKeyBytes)
 	}
 }
 
 func TestImportKey(t *testing.T) {
 	jsonString := `{"username":"ScoobyUser","password":"ShaggyPassword1Zoinks!","privateKey":"PrivateKey-ewoqjP7PxY4yr3iLTpLisriqt94hdyDFNgchSxGGztUrTXtNN"}`
 	args := ImportKeyArgs{}
-	err := stdjson.Unmarshal([]byte(jsonString), &args)
+	err := json.Unmarshal([]byte(jsonString), &args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,11 +245,23 @@ func TestGetTxStatus(t *testing.T) {
 	}
 	service.vm.AtomicUTXOManager = oldAtomicUTXOManager
 
-	var (
-		arg  = &GetTxStatusArgs{TxID: tx.ID()}
-		resp GetTxStatusResponse
-	)
+	arg := &GetTxStatusArgs{TxID: tx.ID()}
+	argIncludeReason := &GetTxStatusArgs{TxID: tx.ID(), IncludeReason: true}
+
+	var resp GetTxStatusResponse
 	err = service.GetTxStatus(nil, arg, &resp)
+	switch {
+	case err != nil:
+		t.Fatal(err)
+	case resp.Status != status.Unknown:
+		t.Fatalf("status should be unknown but is %s", resp.Status)
+	case resp.Reason != "":
+		t.Fatalf("reason should be empty but is %s", resp.Reason)
+	}
+
+	resp = GetTxStatusResponse{} // reset
+
+	err = service.GetTxStatus(nil, argIncludeReason, &resp)
 	switch {
 	case err != nil:
 		t.Fatal(err)
@@ -312,7 +332,7 @@ func TestGetTx(t *testing.T) {
 					service.vm.MinValidatorStake,
 					uint64(service.vm.clock.Time().Add(syncBound).Unix()),
 					uint64(service.vm.clock.Time().Add(syncBound).Add(defaultMinStakingDuration).Unix()),
-					ids.GenerateTestNodeID(),
+					ids.GenerateTestShortID(),
 					ids.GenerateTestShortID(),
 					0,
 					[]*crypto.PrivateKeySECP256K1R{keys[0]},
@@ -421,10 +441,10 @@ func TestGetBalance(t *testing.T) {
 		if err := service.GetBalance(nil, &request, &reply); err != nil {
 			t.Fatal(err)
 		}
-		if reply.Balance != json.Uint64(defaultBalance) {
+		if reply.Balance != cjson.Uint64(defaultBalance) {
 			t.Fatalf("Wrong balance. Expected %d ; Returned %d", defaultBalance, reply.Balance)
 		}
-		if reply.Unlocked != json.Uint64(defaultBalance) {
+		if reply.Unlocked != cjson.Uint64(defaultBalance) {
 			t.Fatalf("Wrong unlocked balance. Expected %d ; Returned %d", defaultBalance, reply.Unlocked)
 		}
 		if reply.LockedStakeable != 0 {
@@ -510,7 +530,7 @@ func TestGetStake(t *testing.T) {
 
 	// Add a delegator
 	stakeAmt := service.vm.MinDelegatorStake + 12345
-	delegatorNodeID := ids.NodeID(keys[0].PublicKey().Address())
+	delegatorNodeID := keys[0].PublicKey().Address()
 	delegatorEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
 	tx, err := service.vm.newAddDelegatorTx(
 		stakeAmt,
@@ -553,7 +573,7 @@ func TestGetStake(t *testing.T) {
 	// Make sure this works for pending stakers
 	// Add a pending staker
 	stakeAmt = service.vm.MinValidatorStake + 54321
-	pendingStakerNodeID := ids.GenerateTestNodeID()
+	pendingStakerNodeID := ids.GenerateTestShortID()
 	pendingStakerEndTime := uint64(defaultGenesisTime.Add(defaultMinStakingDuration).Unix())
 	tx, err = service.vm.newAddValidatorTx(
 		stakeAmt,
@@ -654,7 +674,7 @@ func TestGetCurrentValidators(t *testing.T) {
 
 	// Add a delegator
 	stakeAmt := service.vm.MinDelegatorStake + 12345
-	validatorNodeID := ids.NodeID(keys[1].PublicKey().Address())
+	validatorNodeID := keys[1].PublicKey().Address()
 	delegatorStartTime := uint64(defaultValidateStartTime.Unix())
 	delegatorEndTime := uint64(defaultValidateStartTime.Add(defaultMinStakingDuration).Unix())
 
@@ -696,7 +716,7 @@ func TestGetCurrentValidators(t *testing.T) {
 	found := false
 	for i := 0; i < len(response.Validators) && !found; i++ {
 		vdr := response.Validators[i].(APIPrimaryValidator)
-		if vdr.NodeID != validatorNodeID {
+		if vdr.NodeID != validatorNodeID.PrefixedString(constants.NodeIDPrefix) {
 			continue
 		}
 		found = true

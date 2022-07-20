@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -28,13 +28,14 @@ var (
 //
 // If a vertex is loaded, it will have one canonical uniqueVertex. The vertex
 // will eventually be evicted from memory, when the uniqueVertex is evicted from
-// the cache. If the uniqueVertex has a function called again after this
+// the cache. If the uniqueVertex has a function called again afther this
 // eviction, the vertex will be re-loaded from the database.
 type uniqueVertex struct {
 	serializer *Serializer
 
-	id ids.ID
-	v  *vertexState
+	vtxID ids.ID
+	v     *vertexState
+
 	// default to "time.Now", used for testing
 	time func() time.Time
 }
@@ -43,7 +44,7 @@ type uniqueVertex struct {
 // and then parsing the vertex bytes on a cache miss.
 func newUniqueVertex(s *Serializer, b []byte) (*uniqueVertex, error) {
 	vtx := &uniqueVertex{
-		id:         hashing.ComputeHash256Array(b),
+		vtxID:      hashing.ComputeHash256Array(b),
 		serializer: s,
 	}
 	vtx.shallowRefresh()
@@ -65,7 +66,7 @@ func newUniqueVertex(s *Serializer, b []byte) (*uniqueVertex, error) {
 	unparsedTxs := innerVertex.Txs()
 	txs := make([]snowstorm.Tx, len(unparsedTxs))
 	for i, txBytes := range unparsedTxs {
-		tx, err := vtx.serializer.VM.ParseTx(txBytes)
+		tx, err := vtx.serializer.vm.ParseTx(txBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -96,25 +97,25 @@ func (vtx *uniqueVertex) refresh() {
 }
 
 // shallowRefresh checks the cache for the uniqueVertex and gets the
-// most up-to-date status for [vtx]
-// ensures that the status is up-to-date for this vertex
+// most up to date status for [vtx]
+// ensures that the status is up to date for this vertex
 // inner vertex may be nil after calling shallowRefresh
 func (vtx *uniqueVertex) shallowRefresh() {
 	if vtx.v == nil {
 		vtx.v = &vertexState{}
 	}
-	if vtx.v.latest {
+	if vtx.v.unique {
 		return
 	}
 
-	latest := vtx.serializer.state.UniqueVertex(vtx)
+	unique := vtx.serializer.state.UniqueVertex(vtx)
 	prevVtx := vtx.v.vtx
-	if latest == vtx {
+	if unique == vtx {
 		vtx.v.status = vtx.serializer.state.Status(vtx.ID())
-		vtx.v.latest = true
+		vtx.v.unique = true
 	} else {
-		// If someone is in the cache, they must be up-to-date
-		*vtx = *latest
+		// If someone is in the cache, they must be up to date
+		*vtx = *unique
 	}
 
 	if vtx.v.vtx == nil {
@@ -124,7 +125,7 @@ func (vtx *uniqueVertex) shallowRefresh() {
 
 func (vtx *uniqueVertex) Evict() {
 	if vtx.v != nil {
-		vtx.v.latest = false
+		vtx.v.unique = false
 		// make sure the parents can be garbage collected
 		vtx.v.parents = nil
 	}
@@ -153,7 +154,7 @@ func (vtx *uniqueVertex) persist() error {
 	if err := vtx.serializer.state.SetStatus(vtx.ID(), vtx.v.status); err != nil {
 		return err
 	}
-	return vtx.serializer.versionDB.Commit()
+	return vtx.serializer.db.Commit()
 }
 
 func (vtx *uniqueVertex) setStatus(status choices.Status) error {
@@ -165,15 +166,15 @@ func (vtx *uniqueVertex) setStatus(status choices.Status) error {
 	return vtx.serializer.state.SetStatus(vtx.ID(), status)
 }
 
-func (vtx *uniqueVertex) ID() ids.ID       { return vtx.id }
-func (vtx *uniqueVertex) Key() interface{} { return vtx.id }
+func (vtx *uniqueVertex) ID() ids.ID       { return vtx.vtxID }
+func (vtx *uniqueVertex) Key() interface{} { return vtx.vtxID }
 
 func (vtx *uniqueVertex) Accept() error {
 	if err := vtx.setStatus(choices.Accepted); err != nil {
 		return err
 	}
 
-	vtx.serializer.edge.Add(vtx.id)
+	vtx.serializer.edge.Add(vtx.vtxID)
 	parents, err := vtx.Parents()
 	if err != nil {
 		return err
@@ -184,14 +185,14 @@ func (vtx *uniqueVertex) Accept() error {
 	}
 
 	if err := vtx.serializer.state.SetEdge(vtx.serializer.Edge()); err != nil {
-		return fmt.Errorf("failed to set edge while accepting vertex %s due to %w", vtx.id, err)
+		return fmt.Errorf("failed to set edge while accepting vertex %s due to %w", vtx.vtxID, err)
 	}
 
 	// Should never traverse into parents of a decided vertex. Allows for the
 	// parents to be garbage collected
 	vtx.v.parents = nil
 
-	return vtx.serializer.versionDB.Commit()
+	return vtx.serializer.db.Commit()
 }
 
 func (vtx *uniqueVertex) Reject() error {
@@ -203,7 +204,7 @@ func (vtx *uniqueVertex) Reject() error {
 	// parents to be garbage collected
 	vtx.v.parents = nil
 
-	return vtx.serializer.versionDB.Commit()
+	return vtx.serializer.db.Commit()
 }
 
 // TODO: run performance test to see if shallow refreshing
@@ -224,7 +225,7 @@ func (vtx *uniqueVertex) Parents() ([]avalanche.Vertex, error) {
 		for i, parentID := range parentIDs {
 			vtx.v.parents[i] = &uniqueVertex{
 				serializer: vtx.serializer,
-				id:         parentID,
+				vtxID:      parentID,
 			}
 		}
 	}
@@ -254,7 +255,7 @@ func (vtx *uniqueVertex) Verify() error {
 		if vtx.time != nil {
 			now = vtx.time()
 		}
-		allowed := vtx.serializer.XChainMigrationTime
+		allowed := vtx.serializer.xChainMigrationTime
 		if now.Before(allowed) {
 			return errStopVertexNotAllowedTimestamp
 		}
@@ -265,7 +266,7 @@ func (vtx *uniqueVertex) Verify() error {
 	acceptedEdges := ids.NewSet(0)
 	acceptedEdges.Add(vtx.serializer.Edge()...)
 	for id := range acceptedEdges {
-		edgeVtx, err := vtx.serializer.getUniqueVertex(id)
+		edgeVtx, err := vtx.serializer.getVertex(id)
 		if err != nil {
 			return err
 		}
@@ -447,7 +448,7 @@ func (vtx *uniqueVertex) Txs() ([]snowstorm.Tx, error) {
 	if len(txs) != len(vtx.v.txs) {
 		vtx.v.txs = make([]snowstorm.Tx, len(txs))
 		for i, txBytes := range txs {
-			tx, err := vtx.serializer.VM.ParseTx(txBytes)
+			tx, err := vtx.serializer.vm.ParseTx(txBytes)
 			if err != nil {
 				return nil, err
 			}
@@ -498,7 +499,7 @@ func (vtx *uniqueVertex) String() string {
 }
 
 type vertexState struct {
-	latest bool
+	unique bool
 
 	vtx    vertex.StatelessVertex
 	status choices.Status

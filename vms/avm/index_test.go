@@ -1,11 +1,10 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -25,7 +24,6 @@ import (
 	"github.com/lasthyphen/beacongo/utils/crypto"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
 	"github.com/lasthyphen/beacongo/version"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/index"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
@@ -67,7 +65,7 @@ func TestIndexTransaction_Ordered(t *testing.T) {
 		tx := buildTX(utxoID, txAssetID, addr)
 
 		// sign the transaction
-		if err := signTX(vm.parser.Codec(), tx, key); err != nil {
+		if err := signTX(vm.codec, tx, key); err != nil {
 			t.Fatal(err)
 		}
 
@@ -82,7 +80,7 @@ func TestIndexTransaction_Ordered(t *testing.T) {
 
 		// issue transaction
 		if _, err := vm.IssueTx(tx.Bytes()); err != nil {
-			t.Fatalf("should have issued the transaction correctly but erred: %s", err)
+			t.Fatalf("should have issued the transaction correctly but errored: %s", err)
 		}
 
 		ctx.Lock.Unlock()
@@ -160,7 +158,7 @@ func TestIndexTransaction_MultipleTransactions(t *testing.T) {
 		tx := buildTX(utxoID, txAssetID, addr)
 
 		// sign the transaction
-		if err := signTX(vm.parser.Codec(), tx, key); err != nil {
+		if err := signTX(vm.codec, tx, key); err != nil {
 			t.Fatal(err)
 		}
 
@@ -175,7 +173,7 @@ func TestIndexTransaction_MultipleTransactions(t *testing.T) {
 
 		// issue transaction
 		if _, err := vm.IssueTx(tx.Bytes()); err != nil {
-			t.Fatalf("should have issued the transaction correctly but erred: %s", err)
+			t.Fatalf("should have issued the transaction correctly but errored: %s", err)
 		}
 
 		ctx.Lock.Unlock()
@@ -257,7 +255,7 @@ func TestIndexTransaction_MultipleAddresses(t *testing.T) {
 	tx := buildTX(utxoID, txAssetID, addrs...)
 
 	// sign the transaction
-	if err := signTX(vm.parser.Codec(), tx, key); err != nil {
+	if err := signTX(vm.codec, tx, key); err != nil {
 		t.Fatal(err)
 	}
 
@@ -319,7 +317,7 @@ func TestIndexTransaction_UnorderedWrites(t *testing.T) {
 		tx := buildTX(utxoID, txAssetID, addr)
 
 		// sign the transaction
-		if err := signTX(vm.parser.Codec(), tx, key); err != nil {
+		if err := signTX(vm.codec, tx, key); err != nil {
 			t.Fatal(err)
 		}
 
@@ -334,7 +332,7 @@ func TestIndexTransaction_UnorderedWrites(t *testing.T) {
 
 		// issue transaction
 		if _, err := vm.IssueTx(tx.Bytes()); err != nil {
-			t.Fatalf("should have issued the transaction correctly but erred: %s", err)
+			t.Fatalf("should have issued the transaction correctly but errored: %s", err)
 		}
 
 		ctx.Lock.Unlock()
@@ -489,13 +487,13 @@ func buildPlatformUTXO(utxoID djtx.UTXOID, txAssetID djtx.Asset, addr ids.ShortI
 	}
 }
 
-func signTX(codec codec.Manager, tx *txs.Tx, key *crypto.PrivateKeySECP256K1R) error {
+func signTX(codec codec.Manager, tx *Tx, key *crypto.PrivateKeySECP256K1R) error {
 	return tx.SignSECP256K1Fx(codec, [][]*crypto.PrivateKeySECP256K1R{{key}})
 }
 
-func buildTX(utxoID djtx.UTXOID, txAssetID djtx.Asset, address ...ids.ShortID) *txs.Tx {
-	return &txs.Tx{
-		UnsignedTx: &txs.BaseTx{
+func buildTX(utxoID djtx.UTXOID, txAssetID djtx.Asset, address ...ids.ShortID) *Tx {
+	return &Tx{
+		UnsignedTx: &BaseTx{
 			BaseTx: djtx.BaseTx{
 				NetworkID:    networkID,
 				BlockchainID: chainID,
@@ -524,9 +522,9 @@ func buildTX(utxoID djtx.UTXOID, txAssetID djtx.Asset, address ...ids.ShortID) *
 
 func setupTestVM(t *testing.T, ctx *snow.Context, baseDBManager manager.Manager, genesisBytes []byte, issuer chan common.Message, config Config) *VM {
 	vm := &VM{}
-	avmConfigBytes, err := json.Marshal(config)
+	avmConfigBytes, err := BuildAvmConfigBytes(config)
 	assert.NoError(t, err)
-	appSender := &common.SenderTest{T: t}
+	appSender := &common.SenderTest{}
 	if err := vm.Initialize(
 		ctx,
 		baseDBManager.NewPrefixDBManager([]byte{1}),

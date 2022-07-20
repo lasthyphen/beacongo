@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package memdb
@@ -147,6 +147,8 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 	}
 }
 
+func (db *Database) Stat(property string) (string, error) { return "", database.ErrNotFound }
+
 func (db *Database) Compact(start []byte, limit []byte) error {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
@@ -251,9 +253,7 @@ func (it *iterator) Next() bool {
 	}
 	// Iterator already initialize, advance it
 	if len(it.keys) > 0 {
-		it.keys[0] = ""
 		it.keys = it.keys[1:]
-		it.values[0] = nil
 		it.values = it.values[1:]
 	}
 	return len(it.keys) > 0

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -12,7 +12,6 @@ import (
 	"github.com/lasthyphen/beacongo/snow"
 	"github.com/lasthyphen/beacongo/utils/crypto"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
-	"github.com/lasthyphen/beacongo/vms/platformvm/fx"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 )
 
@@ -23,7 +22,7 @@ type UnsignedCreateSubnetTx struct {
 	// Metadata, inputs and outputs
 	BaseTx `serialize:"true"`
 	// Who is authorized to manage this subnet
-	Owner fx.Owner `serialize:"true" json:"owner"`
+	Owner Owner `serialize:"true" json:"owner"`
 }
 
 // InputUTXOs for [DecisionTxs] will return an empty set to diffrentiate from the [AtomicTxs] input UTXOs

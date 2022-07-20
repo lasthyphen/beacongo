@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vertex
@@ -6,9 +6,8 @@ package vertex
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/lasthyphen/beacongo/ids"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseInvalid(t *testing.T) {

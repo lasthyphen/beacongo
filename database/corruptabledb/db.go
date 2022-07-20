@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package corruptabledb
@@ -64,6 +64,12 @@ func (db *Database) Delete(key []byte) error {
 		return err
 	}
 	return db.handleError(db.Database.Delete(key))
+}
+
+// Stat returns a particular internal stat of the database.
+func (db *Database) Stat(property string) (string, error) {
+	stat, err := db.Database.Stat(property)
+	return stat, db.handleError(err)
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package snowman
@@ -14,7 +14,7 @@ import (
 type convincer struct {
 	consensus snowman.Consensus
 	sender    common.Sender
-	vdr       ids.NodeID
+	vdr       ids.ShortID
 	requestID uint32
 	sent      bool
 	abandoned bool

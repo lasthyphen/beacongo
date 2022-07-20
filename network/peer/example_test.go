@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package peer
@@ -11,8 +11,8 @@ import (
 
 	"github.com/lasthyphen/beacongo/message"
 	"github.com/lasthyphen/beacongo/snow/networking/router"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/constants"
-	"github.com/lasthyphen/beacongo/utils/ips"
 )
 
 func ExampleStartTestPeer() {
@@ -20,7 +20,7 @@ func ExampleStartTestPeer() {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	peerIP := ips.IPPort{
+	peerIP := utils.IPDesc{
 		IP:   net.IPv6loopback,
 		Port: 9651,
 	}

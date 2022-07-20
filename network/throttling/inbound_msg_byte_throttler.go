@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package throttling
@@ -8,6 +8,7 @@ import (
 
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow/validators"
+	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/linkedhashmap"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/utils/math"
@@ -33,11 +34,11 @@ func newInboundMsgByteThrottler(
 			remainingVdrBytes:      config.VdrAllocSize,
 			remainingAtLargeBytes:  config.AtLargeAllocSize,
 			nodeMaxAtLargeBytes:    config.NodeMaxAtLargeBytes,
-			nodeToVdrBytesUsed:     make(map[ids.NodeID]uint64),
-			nodeToAtLargeBytesUsed: make(map[ids.NodeID]uint64),
+			nodeToVdrBytesUsed:     make(map[ids.ShortID]uint64),
+			nodeToAtLargeBytesUsed: make(map[ids.ShortID]uint64),
 		},
 		waitingToAcquire:    linkedhashmap.New(),
-		nodeToWaitingMsgIDs: make(map[ids.NodeID][]uint64),
+		nodeToWaitingMsgIDs: make(map[ids.ShortID][]uint64),
 	}
 	return t, t.metrics.initialize(namespace, registerer)
 }
@@ -47,7 +48,7 @@ type msgMetadata struct {
 	// Need this many more bytes before Acquire returns
 	bytesNeeded uint64
 	// The sender of this incoming message
-	nodeID ids.NodeID
+	nodeID ids.ShortID
 	// Closed when the message can be read.
 	closeOnAcquireChan chan struct{}
 }
@@ -61,7 +62,7 @@ type inboundMsgByteThrottler struct {
 	nextMsgID uint64
 	// Node ID --> IDs of messages this node is waiting to acquire,
 	// order from oldest to most recent.
-	nodeToWaitingMsgIDs map[ids.NodeID][]uint64
+	nodeToWaitingMsgIDs map[ids.ShortID][]uint64
 	// Msg ID --> *msgMetadata
 	waitingToAcquire linkedhashmap.LinkedHashmap
 	// Invariant: The relative order of messages from a given node
@@ -81,8 +82,7 @@ type inboundMsgByteThrottler struct {
 // Returns when we can read a message of size [msgSize] from node [nodeID].
 // Release([msgSize], [nodeID]) must be called (!) when done with the message
 // or when we give up trying to read the message, if applicable.
-// TODO pass in a context to allow early cancellation.
-func (t *inboundMsgByteThrottler) Acquire(msgSize uint64, nodeID ids.NodeID) {
+func (t *inboundMsgByteThrottler) Acquire(msgSize uint64, nodeID ids.ShortID) {
 	startTime := time.Now()
 	defer func() {
 		t.metrics.awaitingRelease.Inc()
@@ -166,7 +166,7 @@ func (t *inboundMsgByteThrottler) Acquire(msgSize uint64, nodeID ids.NodeID) {
 }
 
 // Must correspond to a previous call of Acquire([msgSize], [nodeID])
-func (t *inboundMsgByteThrottler) Release(msgSize uint64, nodeID ids.NodeID) {
+func (t *inboundMsgByteThrottler) Release(msgSize uint64, nodeID ids.ShortID) {
 	t.lock.Lock()
 	defer func() {
 		t.metrics.remainingAtLargeBytes.Set(float64(t.remainingAtLargeBytes))
@@ -237,7 +237,7 @@ func (t *inboundMsgByteThrottler) Release(msgSize uint64, nodeID ids.NodeID) {
 		msgIntf, exists := t.waitingToAcquire.Get(msgID)
 		if !exists {
 			// This should never happen
-			t.log.Warn("couldn't find message %s from %s", msgID, nodeID)
+			t.log.Warn("couldn't find message %s from %s%s", msgID, constants.NodeIDPrefix, nodeID)
 			break
 		}
 		// Give [msg] all the bytes we can

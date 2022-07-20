@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpcdb
@@ -12,11 +12,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/lasthyphen/beacongo/api/proto/rpcdbproto"
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/database/memdb"
-	"github.com/lasthyphen/beacongo/vms/rpcchainvm/grpcutils"
-
-	rpcdbpb "github.com/lasthyphen/beacongo/proto/pb/rpcdb"
 )
 
 const (
@@ -25,16 +23,13 @@ const (
 
 func setupDB(t testing.TB) (database.Database, func()) {
 	listener := bufconn.Listen(bufSize)
-	serverCloser := grpcutils.ServerCloser{}
-
-	serverFunc := func(opts []grpc.ServerOption) *grpc.Server {
-		server := grpc.NewServer(opts...)
-		rpcdbpb.RegisterDatabaseServer(server, NewServer(memdb.New()))
-		serverCloser.Add(server)
-		return server
-	}
-
-	go grpcutils.Serve(listener, serverFunc)
+	server := grpc.NewServer()
+	rpcdbproto.RegisterDatabaseServer(server, NewServer(memdb.New()))
+	go func() {
+		if err := server.Serve(listener); err != nil {
+			t.Logf("Server exited with error: %v", err)
+		}
+	}()
 
 	dialer := grpc.WithContextDialer(
 		func(context.Context, string) (net.Conn, error) {
@@ -42,17 +37,16 @@ func setupDB(t testing.TB) (database.Database, func()) {
 		},
 	)
 
-	dopts := grpcutils.DefaultDialOptions
-	dopts = append(dopts, dialer)
-	conn, err := grpcutils.Dial("", dopts...)
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "", dialer, grpc.WithInsecure())
 	if err != nil {
 		t.Fatalf("Failed to dial: %s", err)
 	}
 
-	db := NewClient(rpcdbpb.NewDatabaseClient(conn))
+	db := NewClient(rpcdbproto.NewDatabaseClient(conn))
 
 	close := func() {
-		serverCloser.Stop()
+		server.Stop()
 		_ = conn.Close()
 		_ = listener.Close()
 	}

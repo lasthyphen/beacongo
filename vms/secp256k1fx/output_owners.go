@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package secp256k1fx
@@ -10,7 +10,7 @@ import (
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow"
 	"github.com/lasthyphen/beacongo/utils/constants"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
+	"github.com/lasthyphen/beacongo/utils/formatting"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
 )
 
@@ -145,5 +145,5 @@ func formatAddress(ctx *snow.Context, addr ids.ShortID) (string, error) {
 	}
 
 	hrp := constants.GetHRP(ctx.NetworkID)
-	return address.Format(chainIDAlias, hrp, addr.Bytes())
+	return formatting.FormatAddress(chainIDAlias, hrp, addr.Bytes())
 }

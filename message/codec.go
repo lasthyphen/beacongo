@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -41,7 +41,7 @@ type Parser interface {
 
 	// Parse reads given bytes as InboundMessage
 	// Overrides client specified deadline in a message to maxDeadlineDuration
-	Parse(bytes []byte, nodeID ids.NodeID, onFinishedHandling func()) (InboundMessage, error)
+	Parse(bytes []byte, nodeID ids.ShortID, onFinishedHandling func()) (InboundMessage, error)
 }
 
 type Codec interface {
@@ -179,7 +179,7 @@ func (c *codec) Pack(
 // Parse attempts to convert bytes into a message.
 // The first byte of the message is the opcode of the message.
 // Overrides client specified deadline in a message to maxDeadlineDuration
-func (c *codec) Parse(bytes []byte, nodeID ids.NodeID, onFinishedHandling func()) (InboundMessage, error) {
+func (c *codec) Parse(bytes []byte, nodeID ids.ShortID, onFinishedHandling func()) (InboundMessage, error) {
 	p := wrappers.Packer{Bytes: bytes}
 
 	// Unpack the op code (message type)
@@ -227,12 +227,9 @@ func (c *codec) Parse(bytes []byte, nodeID ids.NodeID, onFinishedHandling func()
 	for _, field := range msgFields {
 		fieldValues[field] = field.Unpacker()(&p)
 	}
-	if p.Err != nil {
-		return nil, p.Err
-	}
 
 	if p.Offset != len(p.Bytes) {
-		return nil, fmt.Errorf("expected length %d but got %d", p.Offset, len(p.Bytes))
+		return nil, fmt.Errorf("expected length %d but got %d", len(p.Bytes), p.Offset)
 	}
 
 	var expirationTime time.Time
@@ -251,5 +248,5 @@ func (c *codec) Parse(bytes []byte, nodeID ids.NodeID, onFinishedHandling func()
 		nodeID:                nodeID,
 		expirationTime:        expirationTime,
 		onFinishedHandling:    onFinishedHandling,
-	}, nil
+	}, p.Err
 }

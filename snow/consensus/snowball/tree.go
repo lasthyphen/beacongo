@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package snowball
@@ -412,13 +412,11 @@ func (u *unaryNode) RecordPoll(votes ids.Bag, reset bool) node {
 			// u.commonPrefix and u.child.DecidedPrefix() would always result in
 			// the same set being returned.
 
-			newChild := u.child.RecordPoll(votes, u.shouldReset)
+			// If I'm now decided, return my child
 			if u.Finalized() {
-				// If I'm now decided, return my child
-				return newChild
+				return u.child.RecordPoll(votes, u.shouldReset)
 			}
-			u.child = newChild
-
+			u.child = u.child.RecordPoll(votes, u.shouldReset)
 			// The child's preference may have changed
 			u.preference = u.child.Preference()
 		}
@@ -521,12 +519,12 @@ func (b *binaryNode) RecordPoll(votes ids.Bag, reset bool) node {
 			filteredVotes := prunedVotes.Filter(
 				b.bit+1, child.DecidedPrefix(), b.preferences[bit])
 
-			newChild := child.RecordPoll(filteredVotes, b.shouldReset[bit])
 			if b.snowball.Finalized() {
 				// If we are decided here, that means we must have decided due
 				// to this poll. Therefore, we must have decided on bit.
-				return newChild
+				return child.RecordPoll(filteredVotes, b.shouldReset[bit])
 			}
+			newChild := child.RecordPoll(filteredVotes, b.shouldReset[bit])
 			b.children[bit] = newChild
 			b.preferences[bit] = newChild.Preference()
 		}

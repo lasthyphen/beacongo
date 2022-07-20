@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package router
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lasthyphen/beacongo/ids"
@@ -19,21 +18,19 @@ import (
 	"github.com/lasthyphen/beacongo/snow/networking/benchlist"
 	"github.com/lasthyphen/beacongo/snow/networking/handler"
 	"github.com/lasthyphen/beacongo/snow/networking/timeout"
-	"github.com/lasthyphen/beacongo/snow/networking/tracker"
 	"github.com/lasthyphen/beacongo/snow/validators"
 	"github.com/lasthyphen/beacongo/utils/logging"
-	"github.com/lasthyphen/beacongo/utils/math/meter"
-	"github.com/lasthyphen/beacongo/utils/resource"
 	"github.com/lasthyphen/beacongo/utils/timer"
 	"github.com/lasthyphen/beacongo/version"
 )
 
 func TestShutdown(t *testing.T) {
 	vdrs := validators.NewSet()
-	err := vdrs.AddWeight(ids.GenerateTestNodeID(), 1)
+	err := vdrs.AddWeight(ids.GenerateTestShortID(), 1)
 	assert.NoError(t, err)
 	benchlist := benchlist.NewNoBenchlist()
-	tm, err := timeout.NewManager(
+	tm := timeout.Manager{}
+	err = tm.Initialize(
 		&timer.AdaptiveTimeoutConfig{
 			InitialTimeout:     time.Millisecond,
 			MinimumTimeout:     time.Millisecond,
@@ -55,14 +52,12 @@ func TestShutdown(t *testing.T) {
 	mc, err := message.NewCreator(metrics, true, "dummyNamespace", 10*time.Second)
 	assert.NoError(t, err)
 
-	err = chainRouter.Initialize(ids.EmptyNodeID, logging.NoLog{}, mc, tm, time.Second, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
+	err = chainRouter.Initialize(ids.ShortEmpty, logging.NoLog{}, mc, &tm, time.Second, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
 	assert.NoError(t, err)
 
 	shutdownCalled := make(chan struct{}, 1)
 
 	ctx := snow.DefaultConsensusContextTest()
-	resourceTracker, err := tracker.NewResourceTracker(prometheus.NewRegistry(), resource.NoUsage, meter.ContinuousFactory{}, time.Second)
-	assert.NoError(t, err)
 	handler, err := handler.New(
 		mc,
 		ctx,
@@ -70,7 +65,6 @@ func TestShutdown(t *testing.T) {
 		nil,
 		nil,
 		time.Second,
-		resourceTracker,
 	)
 	assert.NoError(t, err)
 
@@ -86,7 +80,7 @@ func TestShutdown(t *testing.T) {
 	bootstrapper.CantGossip = false
 	bootstrapper.ContextF = func() *snow.ConsensusContext { return ctx }
 	bootstrapper.ShutdownF = func() error { shutdownCalled <- struct{}{}; return nil }
-	bootstrapper.ConnectedF = func(nodeID ids.NodeID, nodeVersion version.Application) error { return nil }
+	bootstrapper.ConnectedF = func(nodeID ids.ShortID, nodeVersion version.Application) error { return nil }
 	bootstrapper.HaltF = func() {}
 	handler.SetBootstrapper(bootstrapper)
 
@@ -95,16 +89,13 @@ func TestShutdown(t *testing.T) {
 	engine.CantGossip = false
 	engine.ContextF = func() *snow.ConsensusContext { return ctx }
 	engine.ShutdownF = func() error { shutdownCalled <- struct{}{}; return nil }
-	engine.ConnectedF = func(nodeID ids.NodeID, nodeVersion version.Application) error { return nil }
+	engine.ConnectedF = func(nodeID ids.ShortID, nodeVersion version.Application) error { return nil }
 	engine.HaltF = func() {}
 	handler.SetConsensus(engine)
 	ctx.SetState(snow.NormalOp) // assumed bootstrap is done
 
 	chainRouter.AddChain(handler)
-
-	bootstrapper.StartF = func(startReqID uint32) error { return nil }
 	handler.Start(false)
-
 	chainRouter.Shutdown()
 
 	ticker := time.NewTicker(250 * time.Millisecond)
@@ -122,14 +113,15 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestShutdownTimesOut(t *testing.T) {
-	nodeID := ids.EmptyNodeID
+	nodeID := ids.ShortEmpty
 	vdrs := validators.NewSet()
-	err := vdrs.AddWeight(ids.GenerateTestNodeID(), 1)
+	err := vdrs.AddWeight(ids.GenerateTestShortID(), 1)
 	assert.NoError(t, err)
 	benchlist := benchlist.NewNoBenchlist()
+	tm := timeout.Manager{}
 	metrics := prometheus.NewRegistry()
 	// Ensure that the Ancestors request does not timeout
-	tm, err := timeout.NewManager(
+	err = tm.Initialize(
 		&timer.AdaptiveTimeoutConfig{
 			InitialTimeout:     time.Second,
 			MinimumTimeout:     500 * time.Millisecond,
@@ -151,10 +143,10 @@ func TestShutdownTimesOut(t *testing.T) {
 	mc, err := message.NewCreator(metrics, true, "dummyNamespace", 10*time.Second)
 	assert.NoError(t, err)
 
-	err = chainRouter.Initialize(ids.EmptyNodeID,
+	err = chainRouter.Initialize(ids.ShortEmpty,
 		logging.NoLog{},
 		mc,
-		tm,
+		&tm,
 		time.Millisecond,
 		ids.Set{},
 		nil,
@@ -165,8 +157,6 @@ func TestShutdownTimesOut(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := snow.DefaultConsensusContextTest()
-	resourceTracker, err := tracker.NewResourceTracker(prometheus.NewRegistry(), resource.NoUsage, meter.ContinuousFactory{}, time.Second)
-	assert.NoError(t, err)
 	handler, err := handler.New(
 		mc,
 		ctx,
@@ -174,7 +164,6 @@ func TestShutdownTimesOut(t *testing.T) {
 		nil,
 		nil,
 		time.Second,
-		resourceTracker,
 	)
 	assert.NoError(t, err)
 
@@ -190,9 +179,9 @@ func TestShutdownTimesOut(t *testing.T) {
 	bootstrapper.Default(true)
 	bootstrapper.CantGossip = false
 	bootstrapper.ContextF = func() *snow.ConsensusContext { return ctx }
-	bootstrapper.ConnectedF = func(nodeID ids.NodeID, nodeVersion version.Application) error { return nil }
+	bootstrapper.ConnectedF = func(nodeID ids.ShortID, nodeVersion version.Application) error { return nil }
 	bootstrapper.HaltF = func() {}
-	bootstrapper.AncestorsF = func(nodeID ids.NodeID, requestID uint32, containers [][]byte) error {
+	bootstrapper.AncestorsF = func(nodeID ids.ShortID, requestID uint32, containers [][]byte) error {
 		// Ancestors blocks for two seconds
 		time.Sleep(2 * time.Second)
 		bootstrapFinished <- struct{}{}
@@ -209,8 +198,6 @@ func TestShutdownTimesOut(t *testing.T) {
 	ctx.SetState(snow.NormalOp) // assumed bootstrapping is done
 
 	chainRouter.AddChain(handler)
-
-	bootstrapper.StartF = func(startReqID uint32) error { return nil }
 	handler.Start(false)
 
 	shutdownFinished := make(chan struct{}, 1)
@@ -237,7 +224,8 @@ func TestShutdownTimesOut(t *testing.T) {
 func TestRouterTimeout(t *testing.T) {
 	// Create a timeout manager
 	maxTimeout := 25 * time.Millisecond
-	tm, err := timeout.NewManager(
+	tm := timeout.Manager{}
+	err := tm.Initialize(
 		&timer.AdaptiveTimeoutConfig{
 			InitialTimeout:     10 * time.Millisecond,
 			MinimumTimeout:     10 * time.Millisecond,
@@ -260,7 +248,7 @@ func TestRouterTimeout(t *testing.T) {
 	mc, err := message.NewCreator(metrics, true, "dummyNamespace", 10*time.Second)
 	assert.NoError(t, err)
 
-	err = chainRouter.Initialize(ids.EmptyNodeID, logging.NoLog{}, mc, tm, time.Millisecond, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
+	err = chainRouter.Initialize(ids.ShortEmpty, logging.NoLog{}, mc, &tm, time.Millisecond, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
 	assert.NoError(t, err)
 
 	// Create bootstrapper, engine and handler
@@ -274,11 +262,9 @@ func TestRouterTimeout(t *testing.T) {
 
 	ctx := snow.DefaultConsensusContextTest()
 	vdrs := validators.NewSet()
-	err = vdrs.AddWeight(ids.GenerateTestNodeID(), 1)
+	err = vdrs.AddWeight(ids.GenerateTestShortID(), 1)
 	assert.NoError(t, err)
 
-	resourceTracker, err := tracker.NewResourceTracker(prometheus.NewRegistry(), resource.NoUsage, meter.ContinuousFactory{}, time.Second)
-	assert.NoError(t, err)
 	handler, err := handler.New(
 		mc,
 		ctx,
@@ -286,7 +272,6 @@ func TestRouterTimeout(t *testing.T) {
 		nil,
 		nil,
 		time.Second,
-		resourceTracker,
 	)
 	assert.NoError(t, err)
 
@@ -301,15 +286,15 @@ func TestRouterTimeout(t *testing.T) {
 	bootstrapper.Default(true)
 	bootstrapper.CantGossip = false
 	bootstrapper.ContextF = func() *snow.ConsensusContext { return ctx }
-	bootstrapper.ConnectedF = func(nodeID ids.NodeID, nodeVersion version.Application) error { return nil }
+	bootstrapper.ConnectedF = func(nodeID ids.ShortID, nodeVersion version.Application) error { return nil }
 	bootstrapper.HaltF = func() {}
-	bootstrapper.GetFailedF = func(nodeID ids.NodeID, requestID uint32) error { wg.Done(); calledGetFailed = true; return nil }
-	bootstrapper.GetAncestorsFailedF = func(nodeID ids.NodeID, requestID uint32) error {
+	bootstrapper.GetFailedF = func(nodeID ids.ShortID, requestID uint32) error { wg.Done(); calledGetFailed = true; return nil }
+	bootstrapper.GetAncestorsFailedF = func(nodeID ids.ShortID, requestID uint32) error {
 		defer wg.Done()
 		calledGetAncestorsFailed = true
 		return nil
 	}
-	bootstrapper.QueryFailedF = func(nodeID ids.NodeID, requestID uint32) error {
+	bootstrapper.QueryFailedF = func(nodeID ids.ShortID, requestID uint32) error {
 		defer wg.Done()
 		if !calledQueryFailed {
 			calledQueryFailed = true
@@ -318,12 +303,12 @@ func TestRouterTimeout(t *testing.T) {
 		calledQueryFailed2 = true
 		return nil
 	}
-	bootstrapper.GetAcceptedFailedF = func(nodeID ids.NodeID, requestID uint32) error {
+	bootstrapper.GetAcceptedFailedF = func(nodeID ids.ShortID, requestID uint32) error {
 		defer wg.Done()
 		calledGetAcceptedFailed = true
 		return nil
 	}
-	bootstrapper.GetAcceptedFrontierFailedF = func(nodeID ids.NodeID, requestID uint32) error {
+	bootstrapper.GetAcceptedFrontierFailedF = func(nodeID ids.ShortID, requestID uint32) error {
 		defer wg.Done()
 		calledGetAcceptedFrontierFailed = true
 		return nil
@@ -332,8 +317,6 @@ func TestRouterTimeout(t *testing.T) {
 	ctx.SetState(snow.Bootstrapping) // assumed bootstrapping is ongoing
 
 	chainRouter.AddChain(handler)
-
-	bootstrapper.StartF = func(startReqID uint32) error { return nil }
 	handler.Start(false)
 
 	// Register requests for each request type
@@ -349,7 +332,7 @@ func TestRouterTimeout(t *testing.T) {
 	wg.Add(len(msgs))
 
 	for i, msg := range msgs {
-		chainRouter.RegisterRequest(ids.GenerateTestNodeID(), ctx.ChainID, uint32(i), msg)
+		chainRouter.RegisterRequest(ids.GenerateTestShortID(), ctx.ChainID, uint32(i), msg)
 	}
 
 	wg.Wait()
@@ -361,7 +344,8 @@ func TestRouterTimeout(t *testing.T) {
 
 func TestRouterClearTimeouts(t *testing.T) {
 	// Create a timeout manager
-	tm, err := timeout.NewManager(
+	tm := timeout.Manager{}
+	err := tm.Initialize(
 		&timer.AdaptiveTimeoutConfig{
 			InitialTimeout:     3 * time.Second,
 			MinimumTimeout:     3 * time.Second,
@@ -385,17 +369,15 @@ func TestRouterClearTimeouts(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, err)
-	err = chainRouter.Initialize(ids.EmptyNodeID, logging.NoLog{}, mc, tm, time.Millisecond, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
+	err = chainRouter.Initialize(ids.ShortEmpty, logging.NoLog{}, mc, &tm, time.Millisecond, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
 	assert.NoError(t, err)
 
 	// Create bootstrapper, engine and handler
 	ctx := snow.DefaultConsensusContextTest()
 	vdrs := validators.NewSet()
-	err = vdrs.AddWeight(ids.GenerateTestNodeID(), 1)
+	err = vdrs.AddWeight(ids.GenerateTestShortID(), 1)
 	assert.NoError(t, err)
 
-	resourceTracker, err := tracker.NewResourceTracker(prometheus.NewRegistry(), resource.NoUsage, meter.ContinuousFactory{}, time.Second)
-	assert.NoError(t, err)
 	handler, err := handler.New(
 		mc,
 		ctx,
@@ -403,7 +385,6 @@ func TestRouterClearTimeouts(t *testing.T) {
 		nil,
 		nil,
 		time.Second,
-		resourceTracker,
 	)
 	assert.NoError(t, err)
 
@@ -426,8 +407,6 @@ func TestRouterClearTimeouts(t *testing.T) {
 	ctx.SetState(snow.NormalOp) // assumed bootstrapping is done
 
 	chainRouter.AddChain(handler)
-
-	bootstrapper.StartF = func(startReqID uint32) error { return nil }
 	handler.Start(false)
 
 	// Register requests for each request type
@@ -439,7 +418,7 @@ func TestRouterClearTimeouts(t *testing.T) {
 		message.AcceptedFrontier,
 	}
 
-	vID := ids.GenerateTestNodeID()
+	vID := ids.GenerateTestShortID()
 	for i, op := range ops {
 		chainRouter.RegisterRequest(vID, ctx.ChainID, uint32(i), op)
 	}
@@ -474,7 +453,8 @@ func TestRouterClearTimeouts(t *testing.T) {
 func TestValidatorOnlyMessageDrops(t *testing.T) {
 	// Create a timeout manager
 	maxTimeout := 25 * time.Millisecond
-	tm, err := timeout.NewManager(
+	tm := timeout.Manager{}
+	err := tm.Initialize(
 		&timer.AdaptiveTimeoutConfig{
 			InitialTimeout:     10 * time.Millisecond,
 			MinimumTimeout:     10 * time.Millisecond,
@@ -497,7 +477,7 @@ func TestValidatorOnlyMessageDrops(t *testing.T) {
 	mc, err := message.NewCreator(metrics, true, "dummyNamespace", 10*time.Second)
 	assert.NoError(t, err)
 
-	err = chainRouter.Initialize(ids.EmptyNodeID, logging.NoLog{}, mc, tm, time.Millisecond, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
+	err = chainRouter.Initialize(ids.ShortEmpty, logging.NoLog{}, mc, &tm, time.Millisecond, ids.Set{}, nil, HealthConfig{}, "", prometheus.NewRegistry())
 	assert.NoError(t, err)
 
 	// Create bootstrapper, engine and handler
@@ -507,11 +487,10 @@ func TestValidatorOnlyMessageDrops(t *testing.T) {
 	ctx := snow.DefaultConsensusContextTest()
 	ctx.SetValidatorOnly()
 	vdrs := validators.NewSet()
-	vID := ids.GenerateTestNodeID()
+	vID := ids.GenerateTestShortID()
 	err = vdrs.AddWeight(vID, 1)
 	assert.NoError(t, err)
-	resourceTracker, err := tracker.NewResourceTracker(prometheus.NewRegistry(), resource.NoUsage, meter.ContinuousFactory{}, time.Second)
-	assert.NoError(t, err)
+
 	handler, err := handler.New(
 		mc,
 		ctx,
@@ -519,7 +498,6 @@ func TestValidatorOnlyMessageDrops(t *testing.T) {
 		nil,
 		nil,
 		time.Second,
-		resourceTracker,
 	)
 	assert.NoError(t, err)
 
@@ -533,7 +511,7 @@ func TestValidatorOnlyMessageDrops(t *testing.T) {
 	}
 	bootstrapper.Default(false)
 	bootstrapper.ContextF = func() *snow.ConsensusContext { return ctx }
-	bootstrapper.PullQueryF = func(nodeID ids.NodeID, requestID uint32, containerID ids.ID) error {
+	bootstrapper.PullQueryF = func(nodeID ids.ShortID, requestID uint32, containerID ids.ID) error {
 		defer wg.Done()
 		calledF = true
 		return nil
@@ -547,8 +525,6 @@ func TestValidatorOnlyMessageDrops(t *testing.T) {
 	handler.SetConsensus(engine)
 
 	chainRouter.AddChain(handler)
-
-	bootstrapper.StartF = func(startReqID uint32) error { return nil }
 	handler.Start(false)
 
 	var inMsg message.InboundMessage
@@ -556,7 +532,7 @@ func TestValidatorOnlyMessageDrops(t *testing.T) {
 	reqID := uint32(0)
 
 	// Non-validator case
-	nID := ids.GenerateTestNodeID()
+	nID := ids.GenerateTestShortID()
 
 	calledF = false
 	inMsg = mc.InboundPullQuery(ctx.ChainID, reqID, time.Hour, dummyContainerID,

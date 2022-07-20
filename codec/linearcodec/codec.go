@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package linearcodec
@@ -42,25 +42,19 @@ type linearCodec struct {
 	typeToTypeID map[reflect.Type]uint32
 }
 
-// New returns a new, concurrency-safe codec; it allow to specify
-// both tagNames and maxSlicelenght
-func New(tagNames []string, maxSliceLen uint32) Codec {
+// New returns a new, concurrency-safe codec
+func New(tagName string, maxSliceLen uint32) Codec {
 	hCodec := &linearCodec{
 		nextTypeID:   0,
 		typeIDToType: map[uint32]reflect.Type{},
 		typeToTypeID: map[reflect.Type]uint32{},
 	}
-	hCodec.Codec = reflectcodec.New(hCodec, tagNames, maxSliceLen)
+	hCodec.Codec = reflectcodec.New(hCodec, tagName, maxSliceLen)
 	return hCodec
 }
 
-// NewDefault is a convenience constructor; it returns a new codec with reasonable default values
-func NewDefault() Codec { return New([]string{reflectcodec.DefaultTagName}, defaultMaxSliceLength) }
-
-// NewCustomMaxLength is a convenience constructor; it returns a new codec with custom max length and default tags
-func NewCustomMaxLength(maxSliceLen uint32) Codec {
-	return New([]string{reflectcodec.DefaultTagName}, maxSliceLen)
-}
+// NewDefault returns a new codec with reasonable default values
+func NewDefault() Codec { return New(reflectcodec.DefaultTagName, defaultMaxSliceLength) }
 
 // Skip some number of type IDs
 func (c *linearCodec) SkipRegistrations(num int) {

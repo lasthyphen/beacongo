@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package genesis
@@ -8,7 +8,8 @@ import (
 	"errors"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
+	"github.com/lasthyphen/beacongo/utils/constants"
+	"github.com/lasthyphen/beacongo/utils/formatting"
 )
 
 var errInvalidETHAddress = errors.New("invalid eth address")
@@ -40,7 +41,7 @@ func (ua UnparsedAllocation) Parse() (Allocation, error) {
 	}
 	a.ETHAddr = ethAddr
 
-	_, _, djtxAddrBytes, err := address.Parse(ua.DJTXAddr)
+	_, _, djtxAddrBytes, err := formatting.ParseAddress(ua.DJTXAddr)
 	if err != nil {
 		return a, err
 	}
@@ -54,18 +55,23 @@ func (ua UnparsedAllocation) Parse() (Allocation, error) {
 }
 
 type UnparsedStaker struct {
-	NodeID        ids.NodeID `json:"nodeID"`
-	RewardAddress string     `json:"rewardAddress"`
-	DelegationFee uint32     `json:"delegationFee"`
+	NodeID        string `json:"nodeID"`
+	RewardAddress string `json:"rewardAddress"`
+	DelegationFee uint32 `json:"delegationFee"`
 }
 
 func (us UnparsedStaker) Parse() (Staker, error) {
 	s := Staker{
-		NodeID:        us.NodeID,
 		DelegationFee: us.DelegationFee,
 	}
 
-	_, _, djtxAddrBytes, err := address.Parse(us.RewardAddress)
+	nodeID, err := ids.ShortFromPrefixedString(us.NodeID, constants.NodeIDPrefix)
+	if err != nil {
+		return s, err
+	}
+	s.NodeID = nodeID
+
+	_, _, djtxAddrBytes, err := formatting.ParseAddress(us.RewardAddress)
 	if err != nil {
 		return s, err
 	}
@@ -114,7 +120,7 @@ func (uc UnparsedConfig) Parse() (Config, error) {
 		c.Allocations[i] = a
 	}
 	for i, isa := range uc.InitialStakedFunds {
-		_, _, djtxAddrBytes, err := address.Parse(isa)
+		_, _, djtxAddrBytes, err := formatting.ParseAddress(isa)
 		if err != nil {
 			return c, err
 		}

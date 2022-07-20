@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gsubnetlookup
@@ -6,17 +6,16 @@ package gsubnetlookup
 import (
 	"context"
 
+	"github.com/lasthyphen/beacongo/api/proto/gsubnetlookupproto"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow"
-
-	subnetlookuppb "github.com/lasthyphen/beacongo/proto/pb/subnetlookup"
 )
 
-var _ subnetlookuppb.SubnetLookupServer = &Server{}
+var _ gsubnetlookupproto.SubnetLookupServer = &Server{}
 
 // Server is a subnet lookup that is managed over RPC.
 type Server struct {
-	subnetlookuppb.UnsafeSubnetLookupServer
+	gsubnetlookupproto.UnimplementedSubnetLookupServer
 	aliaser snow.SubnetLookup
 }
 
@@ -27,8 +26,8 @@ func NewServer(aliaser snow.SubnetLookup) *Server {
 
 func (s *Server) SubnetID(
 	_ context.Context,
-	req *subnetlookuppb.SubnetIDRequest,
-) (*subnetlookuppb.SubnetIDResponse, error) {
+	req *gsubnetlookupproto.SubnetIDRequest,
+) (*gsubnetlookupproto.SubnetIDResponse, error) {
 	chainID, err := ids.ToID(req.ChainId)
 	if err != nil {
 		return nil, err
@@ -37,7 +36,7 @@ func (s *Server) SubnetID(
 	if err != nil {
 		return nil, err
 	}
-	return &subnetlookuppb.SubnetIDResponse{
+	return &gsubnetlookupproto.SubnetIDResponse{
 		Id: id[:],
 	}, nil
 }

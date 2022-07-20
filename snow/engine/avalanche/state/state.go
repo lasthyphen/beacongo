@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -11,48 +11,35 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/avalanche/vertex"
 	"github.com/lasthyphen/beacongo/utils/formatting"
 	"github.com/lasthyphen/beacongo/utils/hashing"
-	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
 )
 
 type state struct {
 	serializer *Serializer
-	log        logging.Logger
 
 	dbCache cache.Cacher
 	db      database.Database
 }
 
-// Vertex retrieves the vertex with the given id from cache/disk.
-// Returns nil if it's not found.
-// TODO this should return an error
 func (s *state) Vertex(id ids.ID) vertex.StatelessVertex {
-	var (
-		vtx   vertex.StatelessVertex
-		bytes []byte
-		err   error
-	)
-
 	if vtxIntf, found := s.dbCache.Get(id); found {
-		vtx, _ = vtxIntf.(vertex.StatelessVertex)
+		vtx, _ := vtxIntf.(vertex.StatelessVertex)
 		return vtx
 	}
 
-	if bytes, err = s.db.Get(id[:]); err != nil {
-		s.log.Verbo("Failed to get vertex %s from database due to %s", id, err)
-		s.dbCache.Put(id, nil)
-		return nil
+	if b, err := s.db.Get(id[:]); err == nil {
+		// The key was in the database
+		if vtx, err := s.serializer.parseVertex(b); err == nil {
+			s.dbCache.Put(id, vtx) // Cache the element
+			return vtx
+		}
+		s.serializer.ctx.Log.Error("Parsing failed on saved vertex.\nPrefixed key = %s\nBytes = %s",
+			id,
+			formatting.DumpBytes(b))
 	}
 
-	if vtx, err = s.serializer.parseVertex(bytes); err != nil {
-		s.log.Error("Parsing failed on saved vertex. Prefixed key = %s, Bytes = %s due to %s",
-			id, formatting.DumpBytes(bytes), err)
-		s.dbCache.Put(id, nil)
-		return nil
-	}
-
-	s.dbCache.Put(id, vtx)
-	return vtx
+	s.dbCache.Put(id, nil) // Cache the miss
+	return nil
 }
 
 // SetVertex persists the vertex to the database and returns an error if it
@@ -115,7 +102,7 @@ func (s *state) Edge(id ids.ID) []ids.ID {
 			s.dbCache.Put(id, frontier)
 			return frontier
 		}
-		s.log.Error("Parsing failed on saved ids.\nPrefixed key = %s\nBytes = %s",
+		s.serializer.ctx.Log.Error("Parsing failed on saved ids.\nPrefixed key = %s\nBytes = %s",
 			id,
 			formatting.DumpBytes(b))
 	}
@@ -140,8 +127,8 @@ func (s *state) SetEdge(id ids.ID, frontier []ids.ID) error {
 		p.PackFixedBytes(id[:])
 	}
 
-	s.log.AssertNoError(p.Err)
-	s.log.AssertTrue(p.Offset == len(p.Bytes), "Wrong offset after packing")
+	s.serializer.ctx.Log.AssertNoError(p.Err)
+	s.serializer.ctx.Log.AssertTrue(p.Offset == len(p.Bytes), "Wrong offset after packing")
 
 	return s.db.Put(id[:], p.Bytes)
 }

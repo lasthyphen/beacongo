@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package network
@@ -8,13 +8,13 @@ import (
 	"sync"
 
 	"github.com/lasthyphen/beacongo/network/peer"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/timer/mockable"
 )
 
 // ipSigner will return a signedIP for the current value of our dynamic IP.
 type ipSigner struct {
-	ip     ips.DynamicIPPort
+	ip     *utils.DynamicIPDesc
 	clock  *mockable.Clock
 	signer crypto.Signer
 
@@ -26,7 +26,7 @@ type ipSigner struct {
 }
 
 func newIPSigner(
-	ip ips.DynamicIPPort,
+	ip *utils.DynamicIPDesc,
 	clock *mockable.Clock,
 	signer crypto.Signer,
 ) *ipSigner {
@@ -48,7 +48,7 @@ func (s *ipSigner) getSignedIP() (*peer.SignedIP, error) {
 	s.signedIPLock.RLock()
 	signedIP := s.signedIP
 	s.signedIPLock.RUnlock()
-	ip := s.ip.IPPort()
+	ip := s.ip.IP()
 	if signedIP != nil && signedIP.IP.IP.Equal(ip) {
 		return signedIP, nil
 	}

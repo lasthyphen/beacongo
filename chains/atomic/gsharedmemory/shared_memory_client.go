@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gsharedmemory
@@ -8,12 +8,11 @@ import (
 
 	stdatomic "sync/atomic"
 
+	"github.com/lasthyphen/beacongo/api/proto/gsharedmemoryproto"
 	"github.com/lasthyphen/beacongo/chains/atomic"
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/units"
-
-	sharedmemorypb "github.com/lasthyphen/beacongo/proto/pb/sharedmemory"
 )
 
 const (
@@ -28,18 +27,18 @@ var _ atomic.SharedMemory = &Client{}
 
 // Client is atomic.SharedMemory that talks over RPC.
 type Client struct {
-	client sharedmemorypb.SharedMemoryClient
+	client gsharedmemoryproto.SharedMemoryClient
 
 	uniqueID int64
 }
 
 // NewClient returns shared memory connected to remote shared memory
-func NewClient(client sharedmemorypb.SharedMemoryClient) *Client {
+func NewClient(client gsharedmemoryproto.SharedMemoryClient) *Client {
 	return &Client{client: client}
 }
 
 func (c *Client) Get(peerChainID ids.ID, keys [][]byte) ([][]byte, error) {
-	req := &sharedmemorypb.GetRequest{
+	req := &gsharedmemoryproto.GetRequest{
 		PeerChainId: peerChainID[:],
 		Id:          stdatomic.AddInt64(&c.uniqueID, 1),
 		Continues:   true,
@@ -96,7 +95,7 @@ func (c *Client) Indexed(
 	[]byte,
 	error,
 ) {
-	req := &sharedmemorypb.IndexedRequest{
+	req := &gsharedmemoryproto.IndexedRequest{
 		PeerChainId: peerChainID[:],
 		StartTrait:  startTrait,
 		StartKey:    startKey,
@@ -152,7 +151,7 @@ func (c *Client) Indexed(
 }
 
 func (c *Client) Apply(requests map[ids.ID]*atomic.Requests, batch ...database.Batch) error {
-	req := &sharedmemorypb.ApplyRequest{
+	req := &gsharedmemoryproto.ApplyRequest{
 		Continues: true,
 		Id:        stdatomic.AddInt64(&c.uniqueID, 1),
 	}
@@ -161,7 +160,7 @@ func (c *Client) Apply(requests map[ids.ID]*atomic.Requests, batch ...database.B
 	for key, value := range requests {
 		key := key
 
-		chainReq := &sharedmemorypb.AtomicRequest{
+		chainReq := &gsharedmemoryproto.AtomicRequest{
 			PeerChainId: key[:],
 		}
 		req.Requests = append(req.Requests, chainReq)
@@ -179,14 +178,14 @@ func (c *Client) Apply(requests map[ids.ID]*atomic.Requests, batch ...database.B
 					return err
 				}
 
-				chainReq = &sharedmemorypb.AtomicRequest{
+				chainReq = &gsharedmemoryproto.AtomicRequest{
 					PeerChainId: key[:],
 				}
-				req.Requests = []*sharedmemorypb.AtomicRequest{chainReq}
+				req.Requests = []*gsharedmemoryproto.AtomicRequest{chainReq}
 			}
 
 			currentSize += sizeChange
-			chainReq.PutRequests = append(chainReq.PutRequests, &sharedmemorypb.Element{
+			chainReq.PutRequests = append(chainReq.PutRequests, &gsharedmemoryproto.Element{
 				Key:    v.Key,
 				Value:  v.Value,
 				Traits: v.Traits,
@@ -202,10 +201,10 @@ func (c *Client) Apply(requests map[ids.ID]*atomic.Requests, batch ...database.B
 					return err
 				}
 
-				chainReq = &sharedmemorypb.AtomicRequest{
+				chainReq = &gsharedmemoryproto.AtomicRequest{
 					PeerChainId: key[:],
 				}
-				req.Requests = []*sharedmemorypb.AtomicRequest{chainReq}
+				req.Requests = []*gsharedmemoryproto.AtomicRequest{chainReq}
 			}
 
 			currentSize += sizeChange
@@ -236,10 +235,10 @@ func (c *Client) Apply(requests map[ids.ID]*atomic.Requests, batch ...database.B
 	return nil
 }
 
-func (c *Client) makeBatches(rawBatches []database.Batch, currentSize int) ([][]*sharedmemorypb.Batch, error) {
-	batchGroups := [][]*sharedmemorypb.Batch(nil)
-	currentBatchGroup := []*sharedmemorypb.Batch(nil)
-	currentBatch := &sharedmemorypb.Batch{
+func (c *Client) makeBatches(rawBatches []database.Batch, currentSize int) ([][]*gsharedmemoryproto.Batch, error) {
+	batchGroups := [][]*gsharedmemoryproto.Batch(nil)
+	currentBatchGroup := []*gsharedmemoryproto.Batch(nil)
+	currentBatch := &gsharedmemoryproto.Batch{
 		Id: stdatomic.AddInt64(&c.uniqueID, 1),
 	}
 	for _, batch := range rawBatches {
@@ -265,7 +264,7 @@ func (c *Client) makeBatches(rawBatches []database.Batch, currentSize int) ([][]
 
 				currentSize = 0
 				currentBatchGroup = nil
-				currentBatch = &sharedmemorypb.Batch{
+				currentBatch = &gsharedmemoryproto.Batch{
 					Id: currentBatch.Id,
 				}
 			}
@@ -286,7 +285,7 @@ func (c *Client) makeBatches(rawBatches []database.Batch, currentSize int) ([][]
 
 				currentSize = 0
 				currentBatchGroup = nil
-				currentBatch = &sharedmemorypb.Batch{
+				currentBatch = &gsharedmemoryproto.Batch{
 					Id: currentBatch.Id,
 				}
 			}
@@ -297,7 +296,7 @@ func (c *Client) makeBatches(rawBatches []database.Batch, currentSize int) ([][]
 		if len(currentBatch.Deletes)+len(currentBatch.Puts) > 0 {
 			currentBatchGroup = append(currentBatchGroup, currentBatch)
 		}
-		currentBatch = &sharedmemorypb.Batch{
+		currentBatch = &gsharedmemoryproto.Batch{
 			Id: stdatomic.AddInt64(&c.uniqueID, 1),
 		}
 	}

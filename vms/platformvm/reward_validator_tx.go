@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -134,7 +134,7 @@ func (tx *UnsignedRewardValidatorTx) Execute(
 	onAbortState.SetCurrentSupply(newSupply)
 
 	var (
-		nodeID    ids.NodeID
+		nodeID    ids.ShortID
 		startTime time.Time
 	)
 	switch uStakerTx := stakerTx.UnsignedTx.(type) {

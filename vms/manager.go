@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vms
@@ -44,8 +44,8 @@ type Manager interface {
 	// ID is [vmID]
 	RegisterFactory(vmID ids.ID, factory Factory) error
 
-	// ListFactories returns all the IDs that have had factories registered.
-	ListFactories() ([]ids.ID, error)
+	// ListVMs returns all the IDs that have had factories registered.
+	ListVMs() ([]ids.ID, error)
 
 	// Versions returns the primary alias of the VM mapped to the reported
 	// version of the VM for all the registered VMs that reported versions.
@@ -113,7 +113,7 @@ func (m *manager) RegisterFactory(vmID ids.ID, factory Factory) error {
 	return commonVM.Shutdown()
 }
 
-func (m *manager) ListFactories() ([]ids.ID, error) {
+func (m *manager) ListVMs() ([]ids.ID, error) {
 	vmIDs := make([]ids.ID, 0, len(m.factories))
 	for vmID := range m.factories {
 		vmIDs = append(vmIDs, vmID)

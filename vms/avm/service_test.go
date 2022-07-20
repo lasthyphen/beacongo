@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -7,10 +7,11 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
-	stdjson "encoding/json"
+	json2 "encoding/json"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -26,11 +27,9 @@ import (
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/crypto"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
 	"github.com/lasthyphen/beacongo/utils/json"
 	"github.com/lasthyphen/beacongo/utils/sampler"
 	"github.com/lasthyphen/beacongo/version"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/index"
 	"github.com/lasthyphen/beacongo/vms/components/keystore"
@@ -55,11 +54,11 @@ var testCases = []struct {
 // 2) the VM
 // 3) The service that wraps the VM
 // 4) atomic memory to use in tests
-func setup(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *Service, *atomic.Memory, *txs.Tx) {
+func setup(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *Service, *atomic.Memory, *Tx) {
 	var genesisBytes []byte
 	var vm *VM
 	var m *atomic.Memory
-	var genesisTx *txs.Tx
+	var genesisTx *Tx
 	if isDJTXAsset {
 		genesisBytes, _, vm, m = GenesisVM(t)
 		genesisTx = GetDJTXTxFromGenesisTest(genesisBytes, t)
@@ -95,7 +94,7 @@ func setupWithIssuer(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *Service, cha
 // 2) the VM
 // 3) The service that wraps the VM
 // 4) atomic memory to use in tests
-func setupWithKeys(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *Service, *atomic.Memory, *txs.Tx) {
+func setupWithKeys(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *Service, *atomic.Memory, *Tx) {
 	genesisBytes, vm, s, m, tx := setup(t, isDJTXAsset)
 
 	// Import the initially funded private keys
@@ -725,7 +724,7 @@ func TestServiceGetTxJSON_BaseTx(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 	// fxID in the VM is really set to 11111111111111111111111111111111LpoYY for [secp256k1fx.TransferOutput]
@@ -773,7 +772,7 @@ func TestServiceGetTxJSON_ExportTx(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 	// fxID in the VM is really set to 11111111111111111111111111111111LpoYY for [secp256k1fx.TransferOutput]
@@ -815,7 +814,7 @@ func TestServiceGetTxJSON_CreateAssetTx(t *testing.T) {
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -862,7 +861,7 @@ func TestServiceGetTxJSON_CreateAssetTx(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 
@@ -905,7 +904,7 @@ func TestServiceGetTxJSON_OperationTxWithNftxMintOp(t *testing.T) {
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -931,7 +930,7 @@ func TestServiceGetTxJSON_OperationTxWithNftxMintOp(t *testing.T) {
 	}
 
 	mintNFTTx := buildOperationTxWithOp(buildNFTxMintOp(createAssetTx, key, 2, 1))
-	err = mintNFTTx.SignNFTFx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}})
+	err = mintNFTTx.SignNFTFx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}})
 	assert.NoError(t, err)
 
 	txID, err := vm.IssueTx(mintNFTTx.Bytes())
@@ -963,7 +962,7 @@ func TestServiceGetTxJSON_OperationTxWithNftxMintOp(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 	// assert memo and payload are in hex
@@ -1010,7 +1009,7 @@ func TestServiceGetTxJSON_OperationTxWithMultipleNftxMintOp(t *testing.T) {
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1039,7 +1038,7 @@ func TestServiceGetTxJSON_OperationTxWithMultipleNftxMintOp(t *testing.T) {
 	mintOp2 := buildNFTxMintOp(createAssetTx, key, 3, 2)
 	mintNFTTx := buildOperationTxWithOp(mintOp1, mintOp2)
 
-	err = mintNFTTx.SignNFTFx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}, {key}})
+	err = mintNFTTx.SignNFTFx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}, {key}})
 	assert.NoError(t, err)
 
 	txID, err := vm.IssueTx(mintNFTTx.Bytes())
@@ -1071,7 +1070,7 @@ func TestServiceGetTxJSON_OperationTxWithMultipleNftxMintOp(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 
@@ -1117,7 +1116,7 @@ func TestServiceGetTxJSON_OperationTxWithSecpMintOp(t *testing.T) {
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1143,7 +1142,7 @@ func TestServiceGetTxJSON_OperationTxWithSecpMintOp(t *testing.T) {
 	}
 
 	mintSecpOpTx := buildOperationTxWithOp(buildSecpMintOp(createAssetTx, key, 0))
-	err = mintSecpOpTx.SignSECP256K1Fx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}})
+	err = mintSecpOpTx.SignSECP256K1Fx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}})
 	assert.NoError(t, err)
 
 	txID, err := vm.IssueTx(mintSecpOpTx.Bytes())
@@ -1175,7 +1174,7 @@ func TestServiceGetTxJSON_OperationTxWithSecpMintOp(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 
@@ -1224,7 +1223,7 @@ func TestServiceGetTxJSON_OperationTxWithMultipleSecpMintOp(t *testing.T) {
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1253,7 +1252,7 @@ func TestServiceGetTxJSON_OperationTxWithMultipleSecpMintOp(t *testing.T) {
 	op2 := buildSecpMintOp(createAssetTx, key, 1)
 	mintSecpOpTx := buildOperationTxWithOp(op1, op2)
 
-	err = mintSecpOpTx.SignSECP256K1Fx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}, {key}})
+	err = mintSecpOpTx.SignSECP256K1Fx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}, {key}})
 	assert.NoError(t, err)
 
 	txID, err := vm.IssueTx(mintSecpOpTx.Bytes())
@@ -1285,7 +1284,7 @@ func TestServiceGetTxJSON_OperationTxWithMultipleSecpMintOp(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 
@@ -1332,7 +1331,7 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOp(t *testing.T) {
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1357,7 +1356,7 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	mintPropertyFxOpTx := buildOperationTxWithOp(buildPropertyFxMintOp(createAssetTx, key, 4))
-	err = mintPropertyFxOpTx.SignPropertyFx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}})
+	err = mintPropertyFxOpTx.SignPropertyFx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}})
 	assert.NoError(t, err)
 
 	txID, err := vm.IssueTx(mintPropertyFxOpTx.Bytes())
@@ -1389,7 +1388,7 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOp(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 
@@ -1437,7 +1436,7 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOpMultiple(t *testing.T) 
 				Fx: &propertyfx.Fx{},
 			},
 		},
-		&common.SenderTest{T: t},
+		&common.SenderTest{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1466,7 +1465,7 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOpMultiple(t *testing.T) 
 	op2 := buildPropertyFxMintOp(createAssetTx, key, 5)
 	mintPropertyFxOpTx := buildOperationTxWithOp(op1, op2)
 
-	err = mintPropertyFxOpTx.SignPropertyFx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}, {key}})
+	err = mintPropertyFxOpTx.SignPropertyFx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}, {key}})
 	assert.NoError(t, err)
 
 	txID, err := vm.IssueTx(mintPropertyFxOpTx.Bytes())
@@ -1498,7 +1497,7 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOpMultiple(t *testing.T) 
 	assert.NoError(t, err)
 
 	assert.Equal(t, reply.Encoding, formatting.JSON)
-	jsonTxBytes, err := stdjson.Marshal(reply.Tx)
+	jsonTxBytes, err := json2.Marshal(reply.Tx)
 	assert.NoError(t, err)
 	jsonString := string(jsonTxBytes)
 
@@ -1510,41 +1509,73 @@ func TestServiceGetTxJSON_OperationTxWithPropertyFxMintOpMultiple(t *testing.T) 
 	assert.Contains(t, jsonString, "\"credentials\":[{\"fxID\":\"2mcwQKiD8VEspmMJpL1dc7okQQ5dDVAWeCBZ7FWBFAbxpv3t7w\",\"credential\":{\"signatures\":[\"0x25b7ca14df108d4a32877bda4f10d84eda6d653c620f4c8d124265bdcf0ac91f45712b58b33f4b62a19698325a3c89adff214b77f772d9f311742860039abb5601\"]}},{\"fxID\":\"2mcwQKiD8VEspmMJpL1dc7okQQ5dDVAWeCBZ7FWBFAbxpv3t7w\",\"credential\":{\"signatures\":[\"0x25b7ca14df108d4a32877bda4f10d84eda6d653c620f4c8d124265bdcf0ac91f45712b58b33f4b62a19698325a3c89adff214b77f772d9f311742860039abb5601\"]}}]")
 }
 
-func newDjtxBaseTxWithOutputs(t *testing.T, genesisBytes []byte, vm *VM) *txs.Tx {
+func newDjtxBaseTxWithOutputs(t *testing.T, genesisBytes []byte, vm *VM) *Tx {
 	djtxTx := GetDJTXTxFromGenesisTest(genesisBytes, t)
 	key := keys[0]
 	tx := buildBaseTx(djtxTx, vm, key)
-	if err := tx.SignSECP256K1Fx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}}); err != nil {
+	if err := tx.SignSECP256K1Fx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}}); err != nil {
 		t.Fatal(err)
 	}
 	return tx
 }
 
-func newDjtxExportTxWithOutputs(t *testing.T, genesisBytes []byte, vm *VM) *txs.Tx {
+func newDjtxExportTxWithOutputs(t *testing.T, genesisBytes []byte, vm *VM) *Tx {
 	djtxTx := GetDJTXTxFromGenesisTest(genesisBytes, t)
 	key := keys[0]
 	tx := buildExportTx(djtxTx, vm, key)
-	if err := tx.SignSECP256K1Fx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{key}}); err != nil {
+	if err := tx.SignSECP256K1Fx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{key}}); err != nil {
 		t.Fatal(err)
 	}
 	return tx
 }
 
-func newDjtxCreateAssetTxWithOutputs(t *testing.T, vm *VM) *txs.Tx {
+func newDjtxCreateAssetTxWithOutputs(t *testing.T, vm *VM) *Tx {
 	key := keys[0]
 	tx := buildCreateAssetTx(key)
-	if err := vm.parser.InitializeTx(tx); err != nil {
+	if err := tx.SignSECP256K1Fx(vm.codec, nil); err != nil {
 		t.Fatal(err)
 	}
 	return tx
 }
 
-func buildBaseTx(djtxTx *txs.Tx, vm *VM, key *crypto.PrivateKeySECP256K1R) *txs.Tx {
-	return &txs.Tx{UnsignedTx: &txs.BaseTx{
-		BaseTx: djtx.BaseTx{
+func buildBaseTx(djtxTx *Tx, vm *VM, key *crypto.PrivateKeySECP256K1R) *Tx {
+	return &Tx{UnsignedTx: &BaseTx{BaseTx: djtx.BaseTx{
+		NetworkID:    networkID,
+		BlockchainID: chainID,
+		Memo:         []byte{1, 2, 3, 4, 5, 6, 7, 8},
+		Ins: []*djtx.TransferableInput{{
+			UTXOID: djtx.UTXOID{
+				TxID:        djtxTx.ID(),
+				OutputIndex: 2,
+			},
+			Asset: djtx.Asset{ID: djtxTx.ID()},
+			In: &secp256k1fx.TransferInput{
+				Amt: startBalance,
+				Input: secp256k1fx.Input{
+					SigIndices: []uint32{
+						0,
+					},
+				},
+			},
+		}},
+		Outs: []*djtx.TransferableOutput{{
+			Asset: djtx.Asset{ID: djtxTx.ID()},
+			Out: &secp256k1fx.TransferOutput{
+				Amt: startBalance - vm.TxFee,
+				OutputOwners: secp256k1fx.OutputOwners{
+					Threshold: 1,
+					Addrs:     []ids.ShortID{key.PublicKey().Address()},
+				},
+			},
+		}},
+	}}}
+}
+
+func buildExportTx(djtxTx *Tx, vm *VM, key *crypto.PrivateKeySECP256K1R) *Tx {
+	return &Tx{UnsignedTx: &ExportTx{
+		BaseTx: BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    networkID,
 			BlockchainID: chainID,
-			Memo:         []byte{1, 2, 3, 4, 5, 6, 7, 8},
 			Ins: []*djtx.TransferableInput{{
 				UTXOID: djtx.UTXOID{
 					TxID:        djtxTx.ID(),
@@ -1552,47 +1583,11 @@ func buildBaseTx(djtxTx *txs.Tx, vm *VM, key *crypto.PrivateKeySECP256K1R) *txs.
 				},
 				Asset: djtx.Asset{ID: djtxTx.ID()},
 				In: &secp256k1fx.TransferInput{
-					Amt: startBalance,
-					Input: secp256k1fx.Input{
-						SigIndices: []uint32{
-							0,
-						},
-					},
+					Amt:   startBalance,
+					Input: secp256k1fx.Input{SigIndices: []uint32{0}},
 				},
 			}},
-			Outs: []*djtx.TransferableOutput{{
-				Asset: djtx.Asset{ID: djtxTx.ID()},
-				Out: &secp256k1fx.TransferOutput{
-					Amt: startBalance - vm.TxFee,
-					OutputOwners: secp256k1fx.OutputOwners{
-						Threshold: 1,
-						Addrs:     []ids.ShortID{key.PublicKey().Address()},
-					},
-				},
-			}},
-		},
-	}}
-}
-
-func buildExportTx(djtxTx *txs.Tx, vm *VM, key *crypto.PrivateKeySECP256K1R) *txs.Tx {
-	return &txs.Tx{UnsignedTx: &txs.ExportTx{
-		BaseTx: txs.BaseTx{
-			BaseTx: djtx.BaseTx{
-				NetworkID:    networkID,
-				BlockchainID: chainID,
-				Ins: []*djtx.TransferableInput{{
-					UTXOID: djtx.UTXOID{
-						TxID:        djtxTx.ID(),
-						OutputIndex: 2,
-					},
-					Asset: djtx.Asset{ID: djtxTx.ID()},
-					In: &secp256k1fx.TransferInput{
-						Amt:   startBalance,
-						Input: secp256k1fx.Input{SigIndices: []uint32{0}},
-					},
-				}},
-			},
-		},
+		}},
 		DestinationChain: platformChainID,
 		ExportedOuts: []*djtx.TransferableOutput{{
 			Asset: djtx.Asset{ID: djtxTx.ID()},
@@ -1607,16 +1602,16 @@ func buildExportTx(djtxTx *txs.Tx, vm *VM, key *crypto.PrivateKeySECP256K1R) *tx
 	}}
 }
 
-func buildCreateAssetTx(key *crypto.PrivateKeySECP256K1R) *txs.Tx {
-	return &txs.Tx{UnsignedTx: &txs.CreateAssetTx{
-		BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+func buildCreateAssetTx(key *crypto.PrivateKeySECP256K1R) *Tx {
+	return &Tx{UnsignedTx: &CreateAssetTx{
+		BaseTx: BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    networkID,
 			BlockchainID: chainID,
 		}},
 		Name:         "Team Rocket",
 		Symbol:       "TR",
 		Denomination: 0,
-		States: []*txs.InitialState{{
+		States: []*InitialState{{
 			FxIndex: 0,
 			Outs: []verify.State{
 				&secp256k1fx.MintOutput{
@@ -1669,8 +1664,8 @@ func buildCreateAssetTx(key *crypto.PrivateKeySECP256K1R) *txs.Tx {
 	}}
 }
 
-func buildNFTxMintOp(createAssetTx *txs.Tx, key *crypto.PrivateKeySECP256K1R, outputIndex, groupID uint32) *txs.Operation {
-	return &txs.Operation{
+func buildNFTxMintOp(createAssetTx *Tx, key *crypto.PrivateKeySECP256K1R, outputIndex, groupID uint32) *Operation {
+	return &Operation{
 		Asset: djtx.Asset{ID: createAssetTx.ID()},
 		UTXOIDs: []*djtx.UTXOID{{
 			TxID:        createAssetTx.ID(),
@@ -1690,8 +1685,8 @@ func buildNFTxMintOp(createAssetTx *txs.Tx, key *crypto.PrivateKeySECP256K1R, ou
 	}
 }
 
-func buildPropertyFxMintOp(createAssetTx *txs.Tx, key *crypto.PrivateKeySECP256K1R, outputIndex uint32) *txs.Operation {
-	return &txs.Operation{
+func buildPropertyFxMintOp(createAssetTx *Tx, key *crypto.PrivateKeySECP256K1R, outputIndex uint32) *Operation {
+	return &Operation{
 		Asset: djtx.Asset{ID: createAssetTx.ID()},
 		UTXOIDs: []*djtx.UTXOID{{
 			TxID:        createAssetTx.ID(),
@@ -1711,8 +1706,8 @@ func buildPropertyFxMintOp(createAssetTx *txs.Tx, key *crypto.PrivateKeySECP256K
 	}
 }
 
-func buildSecpMintOp(createAssetTx *txs.Tx, key *crypto.PrivateKeySECP256K1R, outputIndex uint32) *txs.Operation {
-	return &txs.Operation{
+func buildSecpMintOp(createAssetTx *Tx, key *crypto.PrivateKeySECP256K1R, outputIndex uint32) *Operation {
+	return &Operation{
 		Asset: djtx.Asset{ID: createAssetTx.ID()},
 		UTXOIDs: []*djtx.UTXOID{{
 			TxID:        createAssetTx.ID(),
@@ -1742,9 +1737,9 @@ func buildSecpMintOp(createAssetTx *txs.Tx, key *crypto.PrivateKeySECP256K1R, ou
 	}
 }
 
-func buildOperationTxWithOp(op ...*txs.Operation) *txs.Tx {
-	return &txs.Tx{UnsignedTx: &txs.OperationTx{
-		BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+func buildOperationTxWithOp(op ...*Operation) *Tx {
+	return &Tx{UnsignedTx: &OperationTx{
+		BaseTx: BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    networkID,
 			BlockchainID: chainID,
 		}},
@@ -1816,7 +1811,6 @@ func TestServiceGetUTXOs(t *testing.T) {
 	sm := m.NewSharedMemory(platformChainID)
 
 	elems := make([]*atomic.Element, numUTXOs)
-	codec := vm.parser.Codec()
 	for i := range elems {
 		utxo := &djtx.UTXO{
 			UTXOID: djtx.UTXOID{
@@ -1832,7 +1826,7 @@ func TestServiceGetUTXOs(t *testing.T) {
 			},
 		}
 
-		utxoBytes, err := codec.Marshal(txs.CodecVersion, utxo)
+		utxoBytes, err := vm.codec.Marshal(codecVersion, utxo)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1859,7 +1853,7 @@ func TestServiceGetUTXOs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unknownChainAddr, err := address.Format("R", hrp, rawAddr.Bytes())
+	unknownChainAddr, err := formatting.FormatAddress("R", hrp, rawAddr.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2038,7 +2032,7 @@ func TestServiceGetUTXOs(t *testing.T) {
 				return
 			}
 			if test.shouldErr {
-				t.Fatal("should have erred")
+				t.Fatal("should have errored")
 			}
 			if test.count != len(reply.UTXOs) {
 				t.Fatalf("Expected %d utxos, got %d", test.count, len(reply.UTXOs))
@@ -2408,12 +2402,16 @@ func TestImportExportKey(t *testing.T) {
 	}
 	sk := skIntf.(*crypto.PrivateKeySECP256K1R)
 
+	privKeyStr, err := formatting.EncodeWithChecksum(formatting.CB58, sk.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
 	importArgs := &ImportKeyArgs{
 		UserPass: api.UserPass{
 			Username: username,
 			Password: password,
 		},
-		PrivateKey: sk,
+		PrivateKey: constants.SecretKeyPrefix + privKeyStr,
 	}
 	importReply := &api.JSONAddress{}
 	if err = s.ImportKey(nil, importArgs, importReply); err != nil {
@@ -2436,7 +2434,15 @@ func TestImportExportKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(sk.Bytes(), exportReply.PrivateKey.Bytes()) {
+	if !strings.HasPrefix(exportReply.PrivateKey, constants.SecretKeyPrefix) {
+		t.Fatalf("ExportKeyReply private key: %s mssing secret key prefix: %s", exportReply.PrivateKey, constants.SecretKeyPrefix)
+	}
+
+	parsedKeyBytes, err := formatting.Decode(formatting.CB58, strings.TrimPrefix(exportReply.PrivateKey, constants.SecretKeyPrefix))
+	if err != nil {
+		t.Fatal("Failed to parse exported private key")
+	}
+	if !bytes.Equal(sk.Bytes(), parsedKeyBytes) {
 		t.Fatal("Unexpected key was found in ExportKeyReply")
 	}
 }
@@ -2457,12 +2463,16 @@ func TestImportAVMKeyNoDuplicates(t *testing.T) {
 		t.Fatalf("problem generating private key: %s", err)
 	}
 	sk := skIntf.(*crypto.PrivateKeySECP256K1R)
+	privKeyStr, err := formatting.EncodeWithChecksum(formatting.CB58, sk.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
 	args := ImportKeyArgs{
 		UserPass: api.UserPass{
 			Username: username,
 			Password: password,
 		},
-		PrivateKey: sk,
+		PrivateKey: constants.SecretKeyPrefix + privKeyStr,
 	}
 	reply := api.JSONAddress{}
 	if err = s.ImportKey(nil, &args, &reply); err != nil {
@@ -2693,7 +2703,7 @@ func TestImport(t *testing.T) {
 					},
 				},
 			}
-			utxoBytes, err := vm.parser.Codec().Marshal(txs.CodecVersion, utxo)
+			utxoBytes, err := vm.codec.Marshal(codecVersion, utxo)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -11,15 +11,13 @@ import (
 	"sort"
 
 	"github.com/lasthyphen/beacongo/ids"
+	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
 	"github.com/lasthyphen/beacongo/utils/json"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
-	"github.com/lasthyphen/beacongo/vms/platformvm/stakeable"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 
 	safemath "github.com/lasthyphen/beacongo/utils/math"
-	pChainValidator "github.com/lasthyphen/beacongo/vms/platformvm/validator"
 )
 
 // Note that since an Avalanche network has exactly one Platform Chain,
@@ -45,8 +43,6 @@ type APIUTXO struct {
 	Message  string      `json:"message"`
 }
 
-// TODO: refactor APIStaker, APIValidators and merge them together for SubnetValidators + PrimaryValidators
-
 // APIStaker is the representation of a staker sent via APIs.
 // [TxID] is the txID of the transaction that added this staker.
 // [Amount] is the amount of tokens being staked.
@@ -59,7 +55,7 @@ type APIStaker struct {
 	EndTime     json.Uint64  `json:"endTime"`
 	Weight      *json.Uint64 `json:"weight,omitempty"`
 	StakeAmount *json.Uint64 `json:"stakeAmount,omitempty"`
-	NodeID      ids.NodeID   `json:"nodeID"`
+	NodeID      string       `json:"nodeID"`
 }
 
 // APIOwner is the repr. of a reward owner sent over APIs.
@@ -77,18 +73,11 @@ type APIPrimaryValidator struct {
 	PotentialReward    *json.Uint64  `json:"potentialReward,omitempty"`
 	DelegationFee      json.Float32  `json:"delegationFee"`
 	ExactDelegationFee *json.Uint32  `json:"exactDelegationFee,omitempty"`
-	Uptime             *json.Float32 `json:"uptime"`
-	Connected          bool          `json:"connected"`
+	Uptime             *json.Float32 `json:"uptime,omitempty"`
+	Connected          *bool         `json:"connected,omitempty"`
 	Staked             []APIUTXO     `json:"staked,omitempty"`
 	// The delegators delegating to this validator
 	Delegators []APIPrimaryDelegator `json:"delegators"`
-}
-
-// APISubnetValidator is the repr. of a subnet validator sent over APIs.
-type APISubnetValidator struct {
-	APIStaker
-	// The owner the staking reward, if applicable, will go to
-	Connected bool `json:"connected"`
 }
 
 // APIPrimaryDelegator is the repr. of a primary network delegator sent over APIs.
@@ -180,12 +169,12 @@ func (g *Genesis) Initialize() error {
 }
 
 // beck32ToID takes bech32 address and produces a shortID
-func bech32ToID(addrStr string) (ids.ShortID, error) {
-	_, addrBytes, err := address.ParseBech32(addrStr)
+func bech32ToID(address string) (ids.ShortID, error) {
+	_, addr, err := formatting.ParseBech32(address)
 	if err != nil {
 		return ids.ShortID{}, err
 	}
-	return ids.ToShortID(addrBytes)
+	return ids.ToShortID(addr)
 }
 
 // BuildGenesis build the genesis state of the Platform Chain (and thereby the Avalanche network.)
@@ -217,7 +206,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			},
 		}
 		if apiUTXO.Locktime > args.Time {
-			utxo.Out = &stakeable.LockOut{
+			utxo.Out = &StakeableLockOut{
 				Locktime:        uint64(apiUTXO.Locktime),
 				TransferableOut: utxo.Out.(djtx.TransferableOut),
 			}
@@ -233,7 +222,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 	}
 
 	// Specify the validators that are validating the primary network at genesis.
-	vdrs := newTxHeapByEndTime()
+	validators := newTxHeapByEndTime()
 	for _, validator := range args.Validators {
 		weight := uint64(0)
 		stake := make([]*djtx.TransferableOutput, len(validator.Staked))
@@ -256,7 +245,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				},
 			}
 			if apiUTXO.Locktime > args.Time {
-				utxo.Out = &stakeable.LockOut{
+				utxo.Out = &StakeableLockOut{
 					Locktime:        uint64(apiUTXO.Locktime),
 					TransferableOut: utxo.Out,
 				}
@@ -275,6 +264,10 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 		}
 		if uint64(validator.EndTime) <= uint64(args.Time) {
 			return errValidatorAddsNoValue
+		}
+		nodeID, err := ids.ShortFromPrefixedString(validator.NodeID, constants.NodeIDPrefix)
+		if err != nil {
+			return err
 		}
 
 		owner := &secp256k1fx.OutputOwners{
@@ -300,8 +293,8 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 				NetworkID:    uint32(args.NetworkID),
 				BlockchainID: ids.Empty,
 			}},
-			Validator: pChainValidator.Validator{
-				NodeID: validator.NodeID,
+			Validator: Validator{
+				NodeID: nodeID,
 				Start:  uint64(args.Time),
 				End:    uint64(validator.EndTime),
 				Wght:   weight,
@@ -314,7 +307,7 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 			return err
 		}
 
-		vdrs.Add(tx)
+		validators.Add(tx)
 	}
 
 	// Specify the chains that exist at genesis.
@@ -343,8 +336,8 @@ func (ss *StaticService) BuildGenesis(_ *http.Request, args *BuildGenesisArgs, r
 		chains = append(chains, tx)
 	}
 
-	validatorTxs := make([]*Tx, vdrs.Len())
-	for i, tx := range vdrs.txs {
+	validatorTxs := make([]*Tx, validators.Len())
+	for i, tx := range validators.txs {
 		validatorTxs[i] = tx.tx
 	}
 

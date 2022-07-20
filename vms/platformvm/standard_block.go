@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -114,7 +114,7 @@ func (sb *StandardBlock) Verify() error {
 
 		onAccept, err := utx.Execute(sb.vm, sb.onAcceptState, tx)
 		if err != nil {
-			sb.vm.blockBuilder.MarkDropped(txID, err.Error()) // cache tx as dropped
+			sb.vm.droppedTxCache.Put(txID, err.Error()) // cache tx as dropped
 			return err
 		}
 

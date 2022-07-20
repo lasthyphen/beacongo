@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package meterdb
@@ -30,11 +30,8 @@ func New(
 	registerer prometheus.Registerer,
 	db database.Database,
 ) (*Database, error) {
-	metrics, err := newMetrics(namespace, registerer)
-	return &Database{
-		metrics: metrics,
-		db:      db,
-	}, err
+	meterDB := &Database{db: db}
+	return meterDB, meterDB.metrics.Initialize(namespace, registerer)
 }
 
 func (db *Database) Has(key []byte) (bool, error) {
@@ -112,6 +109,14 @@ func (db *Database) NewIteratorWithStartAndPrefix(
 	end := db.clock.Time()
 	db.newIterator.Observe(float64(end.Sub(startTime)))
 	return it
+}
+
+func (db *Database) Stat(stat string) (string, error) {
+	start := db.clock.Time()
+	result, err := db.db.Stat(stat)
+	end := db.clock.Time()
+	db.stat.Observe(float64(end.Sub(start)))
+	return result, err
 }
 
 func (db *Database) Compact(start, limit []byte) error {

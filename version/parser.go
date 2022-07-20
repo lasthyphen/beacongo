@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package version
@@ -7,11 +7,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-)
-
-var (
-	DefaultParser            = NewParser(defaultVersionPrefix, defaultVersionSeparator)
-	DefaultApplicationParser = NewApplicationParser(defaultAppSeparator, defaultVersionSeparator)
 )
 
 // Parser defines the interface of a Version parser
@@ -23,6 +18,8 @@ type parser struct {
 	prefix    string
 	separator string
 }
+
+func NewDefaultParser() Parser { return NewParser(defaultVersionPrefix, defaultVersionSeparator) }
 
 func NewParser(prefix, separator string) Parser {
 	return &parser{
@@ -73,6 +70,11 @@ type ApplicationParser interface {
 type applicationParser struct {
 	appSeparator  string
 	versionParser *parser
+}
+
+// NewDefaultApplicationParser returns a new parser with the default separators
+func NewDefaultApplicationParser() ApplicationParser {
+	return NewApplicationParser(defaultAppSeparator, defaultVersionSeparator)
 }
 
 // NewApplicationParser returns a new parser

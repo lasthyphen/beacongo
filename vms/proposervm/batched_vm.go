@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package proposervm
@@ -24,7 +24,8 @@ func (vm *VM) GetAncestors(
 	maxBlocksSize int,
 	maxBlocksRetrivalTime time.Duration,
 ) ([][]byte, error) {
-	if vm.bVM == nil {
+	rVM, ok := vm.ChainVM.(block.BatchedChainVM)
+	if !ok {
 		return nil, block.ErrRemoteVMNotImplemented
 	}
 
@@ -64,7 +65,7 @@ func (vm *VM) GetAncestors(
 	preMaxBlocksNum := maxBlocksNum - len(res)
 	preMaxBlocksSize := maxBlocksSize - currentByteLength
 	preMaxBlocksRetrivalTime := maxBlocksRetrivalTime - time.Since(startTime)
-	innerBytes, err := vm.bVM.GetAncestors(blkID, preMaxBlocksNum, preMaxBlocksSize, preMaxBlocksRetrivalTime)
+	innerBytes, err := rVM.GetAncestors(blkID, preMaxBlocksNum, preMaxBlocksSize, preMaxBlocksRetrivalTime)
 	if err != nil {
 		if len(res) == 0 {
 			return nil, err
@@ -76,7 +77,8 @@ func (vm *VM) GetAncestors(
 }
 
 func (vm *VM) BatchedParseBlock(blks [][]byte) ([]snowman.Block, error) {
-	if vm.bVM == nil {
+	rVM, ok := vm.ChainVM.(block.BatchedChainVM)
+	if !ok {
 		return nil, block.ErrRemoteVMNotImplemented
 	}
 
@@ -115,7 +117,7 @@ func (vm *VM) BatchedParseBlock(blks [][]byte) ([]snowman.Block, error) {
 	innerBlockBytes = append(innerBlockBytes, blks[blocksIndex:]...)
 
 	// parse all inner blocks at once
-	innerBlks, err := vm.bVM.BatchedParseBlock(innerBlockBytes)
+	innerBlks, err := rVM.BatchedParseBlock(innerBlockBytes)
 	if err != nil {
 		return nil, err
 	}

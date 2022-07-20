@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -134,7 +134,7 @@ func (pb *ProposalBlock) Verify() error {
 	pb.onCommitState, pb.onAbortState, err = tx.Execute(pb.vm, parentState, &pb.Tx)
 	if err != nil {
 		txID := tx.ID()
-		pb.vm.blockBuilder.MarkDropped(txID, err.Error()) // cache tx as dropped
+		pb.vm.droppedTxCache.Put(txID, err.Error()) // cache tx as dropped
 		return err
 	}
 	pb.onCommitState.AddTx(&pb.Tx, status.Committed)

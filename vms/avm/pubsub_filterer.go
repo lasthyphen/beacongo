@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -6,17 +6,16 @@ package avm
 import (
 	"github.com/lasthyphen/beacongo/api"
 	"github.com/lasthyphen/beacongo/pubsub"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 )
 
 var _ pubsub.Filterer = &filterer{}
 
 type filterer struct {
-	tx *txs.Tx
+	tx *Tx
 }
 
-func NewPubSubFilterer(tx *txs.Tx) pubsub.Filterer {
+func NewPubSubFilterer(tx *Tx) pubsub.Filterer {
 	return &filterer{tx: tx}
 }
 

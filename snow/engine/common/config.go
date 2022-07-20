@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package common
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/lasthyphen/beacongo/snow"
-	"github.com/lasthyphen/beacongo/snow/engine/common/tracker"
 	"github.com/lasthyphen/beacongo/snow/validators"
 )
 
@@ -18,13 +17,13 @@ type Config struct {
 	Validators validators.Set
 	Beacons    validators.Set
 
-	SampleK        int
-	Alpha          uint64
-	StartupTracker tracker.Startup
-	Sender         Sender
-	Bootstrapable  Bootstrapable
-	Subnet         Subnet
-	Timer          Timer
+	SampleK       int
+	StartupAlpha  uint64
+	Alpha         uint64
+	Sender        Sender
+	Bootstrapable Bootstrapable
+	Subnet        Subnet
+	Timer         Timer
 
 	// Should Bootstrap be retried
 	RetryBootstrap bool

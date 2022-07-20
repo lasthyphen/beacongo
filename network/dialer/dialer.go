@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package dialer
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/lasthyphen/beacongo/network/throttling"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/logging"
 )
 
@@ -20,14 +20,14 @@ var _ Dialer = &dialer{}
 type Dialer interface {
 	// If [ctx] is canceled, gives up trying to connect to [ip]
 	// and returns an error.
-	Dial(ctx context.Context, ip ips.IPPort) (net.Conn, error)
+	Dial(ctx context.Context, ip utils.IPDesc) (net.Conn, error)
 }
 
 type dialer struct {
-	dialer    net.Dialer
-	log       logging.Logger
-	network   string
-	throttler throttling.DialThrottler
+	log               logging.Logger
+	network           string
+	throttler         throttling.DialThrottler
+	connectionTimeout time.Duration
 }
 
 type Config struct {
@@ -53,19 +53,20 @@ func NewDialer(network string, dialerConfig Config, log logging.Logger) Dialer {
 		dialerConfig.ConnectionTimeout,
 	)
 	return &dialer{
-		dialer:    net.Dialer{Timeout: dialerConfig.ConnectionTimeout},
-		log:       log,
-		network:   network,
-		throttler: throttler,
+		log:               log,
+		network:           network,
+		throttler:         throttler,
+		connectionTimeout: dialerConfig.ConnectionTimeout,
 	}
 }
 
-func (d *dialer) Dial(ctx context.Context, ip ips.IPPort) (net.Conn, error) {
+func (d *dialer) Dial(ctx context.Context, ip utils.IPDesc) (net.Conn, error) {
 	if err := d.throttler.Acquire(ctx); err != nil {
 		return nil, err
 	}
 	d.log.Verbo("dialing %s", ip)
-	conn, err := d.dialer.DialContext(ctx, d.network, ip.String())
+	dialer := net.Dialer{Timeout: d.connectionTimeout}
+	conn, err := dialer.DialContext(ctx, d.network, ip.String())
 	if err != nil {
 		return nil, fmt.Errorf("error while dialing %s: %w", ip, err)
 	}

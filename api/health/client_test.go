@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package health
@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lasthyphen/beacongo/utils/rpc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +17,7 @@ type mockClient struct {
 	onCall func()
 }
 
-func (mc *mockClient) SendRequest(ctx context.Context, method string, params interface{}, replyIntf interface{}, options ...rpc.Option) error {
+func (mc *mockClient) SendRequest(ctx context.Context, method string, params interface{}, replyIntf interface{}) error {
 	reply := replyIntf.(*APIHealthReply)
 	*reply = mc.reply
 	mc.onCall()

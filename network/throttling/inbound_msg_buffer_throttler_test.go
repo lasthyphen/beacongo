@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package throttling
@@ -18,7 +18,7 @@ func TestMsgBufferThrottler(t *testing.T) {
 	throttler, err := newInboundMsgBufferThrottler("", prometheus.NewRegistry(), 3)
 	assert.NoError(err)
 
-	nodeID1, nodeID2 := ids.GenerateTestNodeID(), ids.GenerateTestNodeID()
+	nodeID1, nodeID2 := ids.GenerateTestShortID(), ids.GenerateTestShortID()
 	// Acquire shouldn't block for first 3
 	throttler.Acquire(nodeID1)
 	throttler.Acquire(nodeID1)

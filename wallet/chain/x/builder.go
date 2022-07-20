@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package x
@@ -10,8 +10,9 @@ import (
 	stdcontext "context"
 
 	"github.com/lasthyphen/beacongo/ids"
+	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/math"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
+	"github.com/lasthyphen/beacongo/vms/avm"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
 	"github.com/lasthyphen/beacongo/vms/nftfx"
@@ -52,7 +53,7 @@ type Builder interface {
 	NewBaseTx(
 		outputs []*djtx.TransferableOutput,
 		options ...common.Option,
-	) (*txs.BaseTx, error)
+	) (*avm.BaseTx, error)
 
 	// NewCreateAssetTx creates a new asset.
 	//
@@ -69,16 +70,16 @@ type Builder interface {
 		denomination byte,
 		initialState map[uint32][]verify.State,
 		options ...common.Option,
-	) (*txs.CreateAssetTx, error)
+	) (*avm.CreateAssetTx, error)
 
 	// NewOperationTx performs state changes on the UTXO set. These state
 	// changes may be more complex than simple value transfers.
 	//
 	// - [operations] specifies the state changes to perform.
 	NewOperationTx(
-		operations []*txs.Operation,
+		operations []*avm.Operation,
 		options ...common.Option,
-	) (*txs.OperationTx, error)
+	) (*avm.OperationTx, error)
 
 	// NewOperationTxMintFT performs a set of state changes that mint new tokens
 	// for the requested assets.
@@ -88,7 +89,7 @@ type Builder interface {
 	NewOperationTxMintFT(
 		outputs map[ids.ID]*secp256k1fx.TransferOutput,
 		options ...common.Option,
-	) (*txs.OperationTx, error)
+	) (*avm.OperationTx, error)
 
 	// NewOperationTxMintNFT performs a state change that mints new NFTs for the
 	// requested asset.
@@ -101,7 +102,7 @@ type Builder interface {
 		payload []byte,
 		owners []*secp256k1fx.OutputOwners,
 		options ...common.Option,
-	) (*txs.OperationTx, error)
+	) (*avm.OperationTx, error)
 
 	// NewOperationTxMintProperty performs a state change that mints a new
 	// property for the requested asset.
@@ -112,7 +113,7 @@ type Builder interface {
 		assetID ids.ID,
 		owner *secp256k1fx.OutputOwners,
 		options ...common.Option,
-	) (*txs.OperationTx, error)
+	) (*avm.OperationTx, error)
 
 	// NewOperationTxBurnProperty performs state changes that burns all the
 	// properties of the requested asset.
@@ -121,7 +122,7 @@ type Builder interface {
 	NewOperationTxBurnProperty(
 		assetID ids.ID,
 		options ...common.Option,
-	) (*txs.OperationTx, error)
+	) (*avm.OperationTx, error)
 
 	// NewImportTx creates an import transaction that attempts to consume all
 	// the available UTXOs and import the funds to [to].
@@ -132,7 +133,7 @@ type Builder interface {
 		chainID ids.ID,
 		to *secp256k1fx.OutputOwners,
 		options ...common.Option,
-	) (*txs.ImportTx, error)
+	) (*avm.ImportTx, error)
 
 	// NewExportTx creates an export transaction that attempts to send all the
 	// provided [outputs] to the requested [chainID].
@@ -143,7 +144,7 @@ type Builder interface {
 		chainID ids.ID,
 		outputs []*djtx.TransferableOutput,
 		options ...common.Option,
-	) (*txs.ExportTx, error)
+	) (*avm.ExportTx, error)
 }
 
 // BuilderBackend specifies the required information needed to build unsigned
@@ -190,7 +191,7 @@ func (b *builder) GetImportableBalance(
 func (b *builder) NewBaseTx(
 	outputs []*djtx.TransferableOutput,
 	options ...common.Option,
-) (*txs.BaseTx, error) {
+) (*avm.BaseTx, error) {
 	toBurn := map[ids.ID]uint64{
 		b.backend.DJTXAssetID(): b.backend.BaseTxFee(),
 	}
@@ -209,9 +210,9 @@ func (b *builder) NewBaseTx(
 		return nil, err
 	}
 	outputs = append(outputs, changeOutputs...)
-	djtx.SortTransferableOutputs(outputs, Parser.Codec()) // sort the outputs
+	djtx.SortTransferableOutputs(outputs, Codec) // sort the outputs
 
-	return &txs.BaseTx{BaseTx: djtx.BaseTx{
+	return &avm.BaseTx{BaseTx: djtx.BaseTx{
 		NetworkID:    b.backend.NetworkID(),
 		BlockchainID: b.backend.BlockchainID(),
 		Ins:          inputs,
@@ -226,7 +227,7 @@ func (b *builder) NewCreateAssetTx(
 	denomination byte,
 	initialState map[uint32][]verify.State,
 	options ...common.Option,
-) (*txs.CreateAssetTx, error) {
+) (*avm.CreateAssetTx, error) {
 	toBurn := map[ids.ID]uint64{
 		b.backend.DJTXAssetID(): b.backend.CreateAssetTxFee(),
 	}
@@ -236,19 +237,18 @@ func (b *builder) NewCreateAssetTx(
 		return nil, err
 	}
 
-	codec := Parser.Codec()
-	states := make([]*txs.InitialState, 0, len(initialState))
+	states := make([]*avm.InitialState, 0, len(initialState))
 	for fxIndex, outs := range initialState {
-		state := &txs.InitialState{
+		state := &avm.InitialState{
 			FxIndex: fxIndex,
 			Outs:    outs,
 		}
-		state.Sort(codec) // sort the outputs
+		state.Sort(Codec) // sort the outputs
 		states = append(states, state)
 	}
 
-	tx := &txs.CreateAssetTx{
-		BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+	tx := &avm.CreateAssetTx{
+		BaseTx: avm.BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    b.backend.NetworkID(),
 			BlockchainID: b.backend.BlockchainID(),
 			Ins:          inputs,
@@ -265,9 +265,9 @@ func (b *builder) NewCreateAssetTx(
 }
 
 func (b *builder) NewOperationTx(
-	operations []*txs.Operation,
+	operations []*avm.Operation,
 	options ...common.Option,
-) (*txs.OperationTx, error) {
+) (*avm.OperationTx, error) {
 	toBurn := map[ids.ID]uint64{
 		b.backend.DJTXAssetID(): b.backend.CreateAssetTxFee(),
 	}
@@ -277,9 +277,9 @@ func (b *builder) NewOperationTx(
 		return nil, err
 	}
 
-	txs.SortOperations(operations, Parser.Codec())
-	return &txs.OperationTx{
-		BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+	avm.SortOperations(operations, Codec)
+	return &avm.OperationTx{
+		BaseTx: avm.BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    b.backend.NetworkID(),
 			BlockchainID: b.backend.BlockchainID(),
 			Ins:          inputs,
@@ -293,7 +293,7 @@ func (b *builder) NewOperationTx(
 func (b *builder) NewOperationTxMintFT(
 	outputs map[ids.ID]*secp256k1fx.TransferOutput,
 	options ...common.Option,
-) (*txs.OperationTx, error) {
+) (*avm.OperationTx, error) {
 	ops := common.NewOptions(options)
 	operations, err := b.mintFTs(outputs, ops)
 	if err != nil {
@@ -307,7 +307,7 @@ func (b *builder) NewOperationTxMintNFT(
 	payload []byte,
 	owners []*secp256k1fx.OutputOwners,
 	options ...common.Option,
-) (*txs.OperationTx, error) {
+) (*avm.OperationTx, error) {
 	ops := common.NewOptions(options)
 	operations, err := b.mintNFTs(assetID, payload, owners, ops)
 	if err != nil {
@@ -320,7 +320,7 @@ func (b *builder) NewOperationTxMintProperty(
 	assetID ids.ID,
 	owner *secp256k1fx.OutputOwners,
 	options ...common.Option,
-) (*txs.OperationTx, error) {
+) (*avm.OperationTx, error) {
 	ops := common.NewOptions(options)
 	operations, err := b.mintProperty(assetID, owner, ops)
 	if err != nil {
@@ -332,7 +332,7 @@ func (b *builder) NewOperationTxMintProperty(
 func (b *builder) NewOperationTxBurnProperty(
 	assetID ids.ID,
 	options ...common.Option,
-) (*txs.OperationTx, error) {
+) (*avm.OperationTx, error) {
 	ops := common.NewOptions(options)
 	operations, err := b.burnProperty(assetID, ops)
 	if err != nil {
@@ -345,7 +345,7 @@ func (b *builder) NewImportTx(
 	chainID ids.ID,
 	to *secp256k1fx.OutputOwners,
 	options ...common.Option,
-) (*txs.ImportTx, error) {
+) (*avm.ImportTx, error) {
 	ops := common.NewOptions(options)
 	utxos, err := b.backend.UTXOs(ops.Context(), chainID)
 	if err != nil {
@@ -433,11 +433,11 @@ func (b *builder) NewImportTx(
 		})
 	}
 
-	djtx.SortTransferableOutputs(outputs, Parser.Codec())
-	return &txs.ImportTx{
-		BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+	djtx.SortTransferableOutputs(outputs, Codec)
+	return &avm.ImportTx{
+		BaseTx: avm.BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    b.backend.NetworkID(),
-			BlockchainID: b.backend.BlockchainID(),
+			BlockchainID: constants.PlatformChainID,
 			Ins:          inputs,
 			Outs:         outputs,
 			Memo:         ops.Memo(),
@@ -451,7 +451,7 @@ func (b *builder) NewExportTx(
 	chainID ids.ID,
 	outputs []*djtx.TransferableOutput,
 	options ...common.Option,
-) (*txs.ExportTx, error) {
+) (*avm.ExportTx, error) {
 	toBurn := map[ids.ID]uint64{
 		b.backend.DJTXAssetID(): b.backend.BaseTxFee(),
 	}
@@ -470,9 +470,9 @@ func (b *builder) NewExportTx(
 		return nil, err
 	}
 
-	djtx.SortTransferableOutputs(outputs, Parser.Codec())
-	return &txs.ExportTx{
-		BaseTx: txs.BaseTx{BaseTx: djtx.BaseTx{
+	djtx.SortTransferableOutputs(outputs, Codec)
+	return &avm.ExportTx{
+		BaseTx: avm.BaseTx{BaseTx: djtx.BaseTx{
 			NetworkID:    b.backend.NetworkID(),
 			BlockchainID: b.backend.BlockchainID(),
 			Ins:          inputs,
@@ -613,8 +613,8 @@ func (b *builder) spend(
 		}
 	}
 
-	djtx.SortTransferableInputs(inputs)                   // sort inputs
-	djtx.SortTransferableOutputs(outputs, Parser.Codec()) // sort the change outputs
+	djtx.SortTransferableInputs(inputs)          // sort inputs
+	djtx.SortTransferableOutputs(outputs, Codec) // sort the change outputs
 	return inputs, outputs, nil
 }
 
@@ -622,7 +622,7 @@ func (b *builder) mintFTs(
 	outputs map[ids.ID]*secp256k1fx.TransferOutput,
 	options *common.Options,
 ) (
-	operations []*txs.Operation,
+	operations []*avm.Operation,
 	err error,
 ) {
 	utxos, err := b.backend.UTXOs(options.Context(), b.backend.BlockchainID())
@@ -651,7 +651,7 @@ func (b *builder) mintFTs(
 		}
 
 		// add the operation to the array
-		operations = append(operations, &txs.Operation{
+		operations = append(operations, &avm.Operation{
 			Asset:   utxo.Asset,
 			UTXOIDs: []*djtx.UTXOID{&utxo.UTXOID},
 			Op: &secp256k1fx.MintOperation{
@@ -684,7 +684,7 @@ func (b *builder) mintNFTs(
 	owners []*secp256k1fx.OutputOwners,
 	options *common.Options,
 ) (
-	operations []*txs.Operation,
+	operations []*avm.Operation,
 	err error,
 ) {
 	utxos, err := b.backend.UTXOs(options.Context(), b.backend.BlockchainID())
@@ -712,7 +712,7 @@ func (b *builder) mintNFTs(
 		}
 
 		// add the operation to the array
-		operations = append(operations, &txs.Operation{
+		operations = append(operations, &avm.Operation{
 			Asset: djtx.Asset{ID: assetID},
 			UTXOIDs: []*djtx.UTXOID{
 				&utxo.UTXOID,
@@ -740,7 +740,7 @@ func (b *builder) mintProperty(
 	owner *secp256k1fx.OutputOwners,
 	options *common.Options,
 ) (
-	operations []*txs.Operation,
+	operations []*avm.Operation,
 	err error,
 ) {
 	utxos, err := b.backend.UTXOs(options.Context(), b.backend.BlockchainID())
@@ -768,7 +768,7 @@ func (b *builder) mintProperty(
 		}
 
 		// add the operation to the array
-		operations = append(operations, &txs.Operation{
+		operations = append(operations, &avm.Operation{
 			Asset: djtx.Asset{ID: assetID},
 			UTXOIDs: []*djtx.UTXOID{
 				&utxo.UTXOID,
@@ -796,7 +796,7 @@ func (b *builder) burnProperty(
 	assetID ids.ID,
 	options *common.Options,
 ) (
-	operations []*txs.Operation,
+	operations []*avm.Operation,
 	err error,
 ) {
 	utxos, err := b.backend.UTXOs(options.Context(), b.backend.BlockchainID())
@@ -824,7 +824,7 @@ func (b *builder) burnProperty(
 		}
 
 		// add the operation to the array
-		operations = append(operations, &txs.Operation{
+		operations = append(operations, &avm.Operation{
 			Asset: djtx.Asset{ID: assetID},
 			UTXOIDs: []*djtx.UTXOID{
 				&utxo.UTXOID,

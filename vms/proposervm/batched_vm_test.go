@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package proposervm
@@ -6,7 +6,7 @@ package proposervm
 import (
 	"bytes"
 	"crypto"
-	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/common"
 	"github.com/lasthyphen/beacongo/snow/engine/snowman/block"
 	"github.com/lasthyphen/beacongo/snow/validators"
+	"github.com/lasthyphen/beacongo/utils/hashing"
 	"github.com/lasthyphen/beacongo/utils/timer/mockable"
 	"github.com/lasthyphen/beacongo/version"
 	"github.com/lasthyphen/beacongo/vms/proposervm/proposer"
@@ -547,7 +548,7 @@ func TestBatchedParseBlockPreForkOnly(t *testing.T) {
 			case bytes.Equal(blkBytes, coreBlk3.Bytes()):
 				res = append(res, coreBlk3)
 			default:
-				return nil, errors.New("Unexpected call to parse unknown block")
+				return nil, fmt.Errorf("Unexpected call to parse unknown block")
 			}
 		}
 		return res, nil
@@ -647,7 +648,7 @@ func TestBatchedParseBlockPostForkOnly(t *testing.T) {
 			case bytes.Equal(blkBytes, coreBlk3.Bytes()):
 				res = append(res, coreBlk3)
 			default:
-				return nil, errors.New("Unexpected call to parse unknown block")
+				return nil, fmt.Errorf("Unexpected call to parse unknown block")
 			}
 		}
 		return res, nil
@@ -799,7 +800,7 @@ func TestBatchedParseBlockAtSnomanPlusPlusFork(t *testing.T) {
 			case bytes.Equal(blkBytes, coreBlk4.Bytes()):
 				res = append(res, coreBlk4)
 			default:
-				return nil, errors.New("Unexpected call to parse unknown block")
+				return nil, fmt.Errorf("Unexpected call to parse unknown block")
 			}
 		}
 		return res, nil
@@ -875,24 +876,23 @@ func initTestRemoteProposerVM(
 		}
 	}
 
-	proVM := New(coreVM, proBlkStartTime, 0)
+	proVM := New(coreVM, proBlkStartTime, 0, false)
 
 	valState := &validators.TestState{
 		T: t,
 	}
-	valState.GetMinimumHeightF = func() (uint64, error) { return coreGenBlk.Height(), nil }
 	valState.GetCurrentHeightF = func() (uint64, error) { return defaultPChainHeight, nil }
-	valState.GetValidatorSetF = func(height uint64, subnetID ids.ID) (map[ids.NodeID]uint64, error) {
-		res := make(map[ids.NodeID]uint64)
+	valState.GetValidatorSetF = func(height uint64, subnetID ids.ID) (map[ids.ShortID]uint64, error) {
+		res := make(map[ids.ShortID]uint64)
 		res[proVM.ctx.NodeID] = uint64(10)
-		res[ids.NodeID{1}] = uint64(5)
-		res[ids.NodeID{2}] = uint64(6)
-		res[ids.NodeID{3}] = uint64(7)
+		res[ids.ShortID{1}] = uint64(5)
+		res[ids.ShortID{2}] = uint64(6)
+		res[ids.ShortID{3}] = uint64(7)
 		return res, nil
 	}
 
 	ctx := snow.DefaultContextTest()
-	ctx.NodeID = ids.NodeIDFromCert(pTestCert.Leaf)
+	ctx.NodeID = hashing.ComputeHash160Array(hashing.ComputeHash256(pTestCert.Leaf.Raw))
 	ctx.StakingCertLeaf = pTestCert.Leaf
 	ctx.StakingLeafSigner = pTestCert.PrivateKey.(crypto.Signer)
 	ctx.ValidatorState = valState

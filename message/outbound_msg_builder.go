@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 )
 
 var _ OutboundMsgBuilder = &outMsgBuilder{}
@@ -19,7 +19,7 @@ type OutboundMsgBuilder interface {
 	Version(
 		networkID uint32,
 		myTime uint64,
-		ip ips.IPPort,
+		ip utils.IPDesc,
 		myVersion string,
 		myVersionTime uint64,
 		sig []byte,
@@ -27,38 +27,13 @@ type OutboundMsgBuilder interface {
 	) (OutboundMessage, error)
 
 	PeerList(
-		peers []ips.ClaimedIPPort,
+		peers []utils.IPCertDesc,
 		bypassThrottling bool,
 	) (OutboundMessage, error)
 
 	Ping() (OutboundMessage, error)
 
 	Pong(uptimePercentage uint8) (OutboundMessage, error)
-
-	GetStateSummaryFrontier(
-		chainID ids.ID,
-		requestID uint32,
-		deadline time.Duration,
-	) (OutboundMessage, error)
-
-	StateSummaryFrontier(
-		chainID ids.ID,
-		requestID uint32,
-		summary []byte,
-	) (OutboundMessage, error)
-
-	GetAcceptedStateSummary(
-		chainID ids.ID,
-		requestID uint32,
-		deadline time.Duration,
-		heights []uint64,
-	) (OutboundMessage, error)
-
-	AcceptedStateSummary(
-		chainID ids.ID,
-		requestID uint32,
-		summaryIDs []ids.ID,
-	) (OutboundMessage, error)
 
 	GetAcceptedFrontier(
 		chainID ids.ID,
@@ -167,7 +142,7 @@ func NewOutboundBuilder(c Codec, enableCompression bool) OutboundMsgBuilder {
 func (b *outMsgBuilder) Version(
 	networkID uint32,
 	myTime uint64,
-	ip ips.IPPort,
+	ip utils.IPDesc,
 	myVersion string,
 	myVersionTime uint64,
 	sig []byte,
@@ -195,11 +170,11 @@ func (b *outMsgBuilder) Version(
 	)
 }
 
-func (b *outMsgBuilder) PeerList(peers []ips.ClaimedIPPort, bypassThrottling bool) (OutboundMessage, error) {
+func (b *outMsgBuilder) PeerList(peers []utils.IPCertDesc, bypassThrottling bool) (OutboundMessage, error) {
 	return b.c.Pack(
 		PeerList,
 		map[Field]interface{}{
-			Peers: peers,
+			SignedPeers: peers,
 		},
 		b.compress && PeerList.Compressible(), // PeerList messages may be compressed
 		bypassThrottling,
@@ -222,78 +197,6 @@ func (b *outMsgBuilder) Pong(uptimePercentage uint8) (OutboundMessage, error) {
 			Uptime: uptimePercentage,
 		},
 		Pong.Compressible(), // Pong messages can't be compressed
-		false,
-	)
-}
-
-func (b *outMsgBuilder) GetStateSummaryFrontier(
-	chainID ids.ID,
-	requestID uint32,
-	deadline time.Duration,
-) (OutboundMessage, error) {
-	return b.c.Pack(
-		GetStateSummaryFrontier,
-		map[Field]interface{}{
-			ChainID:   chainID[:],
-			RequestID: requestID,
-			Deadline:  uint64(deadline),
-		},
-		GetStateSummaryFrontier.Compressible(), // GetStateSummaryFrontier messages can't be compressed
-		false,
-	)
-}
-
-func (b *outMsgBuilder) StateSummaryFrontier(
-	chainID ids.ID,
-	requestID uint32,
-	summary []byte,
-) (OutboundMessage, error) {
-	return b.c.Pack(
-		StateSummaryFrontier,
-		map[Field]interface{}{
-			ChainID:      chainID[:],
-			RequestID:    requestID,
-			SummaryBytes: summary,
-		},
-		b.compress && StateSummaryFrontier.Compressible(), // StateSummaryFrontier messages may be compressed
-		false,
-	)
-}
-
-func (b *outMsgBuilder) GetAcceptedStateSummary(
-	chainID ids.ID,
-	requestID uint32,
-	deadline time.Duration,
-	heights []uint64,
-) (OutboundMessage, error) {
-	return b.c.Pack(
-		GetAcceptedStateSummary,
-		map[Field]interface{}{
-			ChainID:        chainID[:],
-			RequestID:      requestID,
-			Deadline:       uint64(deadline),
-			SummaryHeights: heights,
-		},
-		b.compress && GetAcceptedStateSummary.Compressible(), // GetAcceptedStateSummary messages may be compressed
-		false,
-	)
-}
-
-func (b *outMsgBuilder) AcceptedStateSummary(
-	chainID ids.ID,
-	requestID uint32,
-	summaryIDs []ids.ID,
-) (OutboundMessage, error) {
-	summaryIDBytes := make([][]byte, len(summaryIDs))
-	encodeIDs(summaryIDs, summaryIDBytes)
-	return b.c.Pack(
-		AcceptedStateSummary,
-		map[Field]interface{}{
-			ChainID:    chainID[:],
-			RequestID:  requestID,
-			SummaryIDs: summaryIDBytes,
-		},
-		b.compress && AcceptedStateSummary.Compressible(), // AcceptedStateSummary messages may be compressed
 		false,
 	)
 }
@@ -321,7 +224,10 @@ func (b *outMsgBuilder) AcceptedFrontier(
 	containerIDs []ids.ID,
 ) (OutboundMessage, error) {
 	containerIDBytes := make([][]byte, len(containerIDs))
-	encodeIDs(containerIDs, containerIDBytes)
+	for i, containerID := range containerIDs {
+		copy := containerID
+		containerIDBytes[i] = copy[:]
+	}
 	return b.c.Pack(
 		AcceptedFrontier,
 		map[Field]interface{}{
@@ -341,7 +247,10 @@ func (b *outMsgBuilder) GetAccepted(
 	containerIDs []ids.ID,
 ) (OutboundMessage, error) {
 	containerIDBytes := make([][]byte, len(containerIDs))
-	encodeIDs(containerIDs, containerIDBytes)
+	for i, containerID := range containerIDs {
+		copy := containerID
+		containerIDBytes[i] = copy[:]
+	}
 	return b.c.Pack(
 		GetAccepted,
 		map[Field]interface{}{
@@ -361,7 +270,10 @@ func (b *outMsgBuilder) Accepted(
 	containerIDs []ids.ID,
 ) (OutboundMessage, error) {
 	containerIDBytes := make([][]byte, len(containerIDs))
-	encodeIDs(containerIDs, containerIDBytes)
+	for i, containerID := range containerIDs {
+		copy := containerID
+		containerIDBytes[i] = copy[:]
+	}
 	return b.c.Pack(
 		Accepted,
 		map[Field]interface{}{
@@ -494,7 +406,10 @@ func (b *outMsgBuilder) Chits(
 	containerIDs []ids.ID,
 ) (OutboundMessage, error) {
 	containerIDBytes := make([][]byte, len(containerIDs))
-	encodeIDs(containerIDs, containerIDBytes)
+	for i, containerID := range containerIDs {
+		copy := containerID
+		containerIDBytes[i] = copy[:]
+	}
 	return b.c.Pack(
 		Chits,
 		map[Field]interface{}{

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package nodb
@@ -44,6 +44,9 @@ func (*Database) NewIteratorWithPrefix([]byte) database.Iterator { return &Itera
 func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database.Iterator {
 	return &Iterator{}
 }
+
+// Stat returns an error
+func (*Database) Stat(string) (string, error) { return "", database.ErrClosed }
 
 // Compact returns nil
 func (*Database) Compact(_, _ []byte) error { return database.ErrClosed }

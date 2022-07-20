@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package ipcs
@@ -11,6 +11,7 @@ import (
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/ipcs/socket"
 	"github.com/lasthyphen/beacongo/snow"
+	"github.com/lasthyphen/beacongo/snow/triggers"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
 )
@@ -24,13 +25,13 @@ type EventSockets struct {
 }
 
 // newEventSockets creates a *ChainIPCs with both consensus and decisions IPCs
-func newEventSockets(ctx context, chainID ids.ID, consensusAcceptorGroup, decisionAcceptorGroup snow.AcceptorGroup) (*EventSockets, error) {
-	consensusIPC, err := newEventIPCSocket(ctx, chainID, ipcConsensusIdentifier, consensusAcceptorGroup)
+func newEventSockets(ctx context, chainID ids.ID, consensusEvents *triggers.EventDispatcher, decisionEvents *triggers.EventDispatcher) (*EventSockets, error) {
+	consensusIPC, err := newEventIPCSocket(ctx, chainID, ipcConsensusIdentifier, consensusEvents)
 	if err != nil {
 		return nil, err
 	}
 
-	decisionsIPC, err := newEventIPCSocket(ctx, chainID, ipcDecisionsIdentifier, decisionAcceptorGroup)
+	decisionsIPC, err := newEventIPCSocket(ctx, chainID, ipcDecisionsIdentifier, decisionEvents)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ type eventSocket struct {
 
 // newEventIPCSocket creates a *eventSocket for the given chain and
 // EventDispatcher that writes to a local IPC socket
-func newEventIPCSocket(ctx context, chainID ids.ID, name string, acceptorGroup snow.AcceptorGroup) (*eventSocket, error) {
+func newEventIPCSocket(ctx context, chainID ids.ID, name string, events *triggers.EventDispatcher) (*eventSocket, error) {
 	var (
 		url     = ipcURL(ctx, chainID, name)
 		ipcName = ipcIdentifierPrefix + "-" + name
@@ -109,7 +110,7 @@ func newEventIPCSocket(ctx context, chainID ids.ID, name string, acceptorGroup s
 		url:    url,
 		socket: socket.NewSocket(url, ctx.log),
 		unregisterFn: func() error {
-			return acceptorGroup.DeregisterAcceptor(chainID, ipcName)
+			return events.DeregisterChain(chainID, ipcName)
 		},
 	}
 
@@ -120,7 +121,7 @@ func newEventIPCSocket(ctx context, chainID ids.ID, name string, acceptorGroup s
 		return nil, err
 	}
 
-	if err := acceptorGroup.RegisterAcceptor(chainID, ipcName, eis, false); err != nil {
+	if err := events.RegisterChain(chainID, ipcName, eis, false); err != nil {
 		if err := eis.stop(); err != nil {
 			return nil, err
 		}

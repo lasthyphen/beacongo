@@ -1,22 +1,22 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
 
 import (
 	"container/list"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"time"
-
-	stdjson "encoding/json"
 
 	"github.com/gorilla/rpc/v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/lasthyphen/beacongo/cache"
+	"github.com/lasthyphen/beacongo/codec"
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/database/manager"
 	"github.com/lasthyphen/beacongo/database/versiondb"
@@ -28,12 +28,9 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/avalanche/vertex"
 	"github.com/lasthyphen/beacongo/snow/engine/common"
 	"github.com/lasthyphen/beacongo/utils/crypto"
-	"github.com/lasthyphen/beacongo/utils/json"
 	"github.com/lasthyphen/beacongo/utils/timer"
 	"github.com/lasthyphen/beacongo/utils/timer/mockable"
 	"github.com/lasthyphen/beacongo/version"
-	"github.com/lasthyphen/beacongo/vms/avm/states"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/index"
 	"github.com/lasthyphen/beacongo/vms/components/keystore"
@@ -41,15 +38,14 @@ import (
 	"github.com/lasthyphen/beacongo/vms/nftfx"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 
+	cjson "github.com/lasthyphen/beacongo/utils/json"
 	safemath "github.com/lasthyphen/beacongo/utils/math"
-	extensions "github.com/lasthyphen/beacongo/vms/avm/fxs"
 )
 
 const (
 	batchTimeout       = time.Second
 	batchSize          = 30
 	assetToFxCacheSize = 1024
-	txDeduplicatorSize = 8192
 )
 
 var (
@@ -75,12 +71,13 @@ type VM struct {
 	// Used to check local time
 	clock mockable.Clock
 
-	parser txs.Parser
+	genesisCodec codec.Manager
+	codec        codec.Manager
 
 	pubsub *pubsub.Server
 
 	// State management
-	state states.State
+	state State
 
 	// Set to true once this VM is marked as `Bootstrapped` by the engine
 	bootstrapped bool
@@ -101,20 +98,18 @@ type VM struct {
 	db     *versiondb.Database
 
 	typeToFxIndex map[reflect.Type]int
-	fxs           []*extensions.ParsedFx
+	fxs           []*parsedFx
 
 	walletService WalletService
 
 	addressTxsIndexer index.AddressTxsIndexer
-
-	uniqueTxs cache.Deduplicator
 }
 
-func (vm *VM) Connected(nodeID ids.NodeID, nodeVersion version.Application) error {
+func (vm *VM) Connected(nodeID ids.ShortID, nodeVersion version.Application) error {
 	return nil
 }
 
-func (vm *VM) Disconnected(nodeID ids.NodeID) error {
+func (vm *VM) Disconnected(nodeID ids.ShortID) error {
 	return nil
 }
 
@@ -141,7 +136,7 @@ func (vm *VM) Initialize(
 ) error {
 	avmConfig := Config{}
 	if len(configBytes) > 0 {
-		if err := stdjson.Unmarshal(configBytes, &avmConfig); err != nil {
+		if err := json.Unmarshal(configBytes, &avmConfig); err != nil {
 			return err
 		}
 		ctx.Log.Info("VM config initialized %+v", avmConfig)
@@ -168,25 +163,25 @@ func (vm *VM) Initialize(
 
 	vm.pubsub = pubsub.New(ctx.NetworkID, ctx.Log)
 
-	typedFxs := make([]extensions.Fx, len(fxs))
-	vm.fxs = make([]*extensions.ParsedFx, len(fxs))
+	typedFxs := make([]Fx, len(fxs))
+	vm.fxs = make([]*parsedFx, len(fxs))
 	for i, fxContainer := range fxs {
 		if fxContainer == nil {
 			return errIncompatibleFx
 		}
-		fx, ok := fxContainer.Fx.(extensions.Fx)
+		fx, ok := fxContainer.Fx.(Fx)
 		if !ok {
 			return errIncompatibleFx
 		}
 		typedFxs[i] = fx
-		vm.fxs[i] = &extensions.ParsedFx{
+		vm.fxs[i] = &parsedFx{
 			ID: fxContainer.ID,
 			Fx: fx,
 		}
 	}
 
 	vm.typeToFxIndex = map[reflect.Type]int{}
-	vm.parser, err = txs.NewCustomParser(
+	vm.genesisCodec, vm.codec, err = newCustomCodecs(
 		vm.typeToFxIndex,
 		&vm.clock,
 		ctx.Log,
@@ -196,13 +191,12 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	vm.AtomicUTXOManager = djtx.NewAtomicUTXOManager(ctx.SharedMemory, vm.parser.Codec())
+	vm.AtomicUTXOManager = djtx.NewAtomicUTXOManager(ctx.SharedMemory, vm.codec)
 
-	state, err := states.New(vm.db, vm.parser, registerer)
+	state, err := NewMeteredState(vm.db, vm.genesisCodec, vm.codec, registerer)
 	if err != nil {
 		return err
 	}
-
 	vm.state = state
 
 	if err := vm.initGenesis(genesisBytes); err != nil {
@@ -218,9 +212,6 @@ func (vm *VM) Initialize(
 	go ctx.Log.RecoverAndPanic(vm.timer.Dispatch)
 	vm.batchTimeout = batchTimeout
 
-	vm.uniqueTxs = &cache.EvictableLRU{
-		Size: txDeduplicatorSize,
-	}
 	vm.walletService.vm = vm
 	vm.walletService.pendingTxMap = make(map[ids.ID]*list.Element)
 	vm.walletService.pendingTxOrdering = list.New()
@@ -292,7 +283,7 @@ func (vm *VM) Version() (string, error) {
 }
 
 func (vm *VM) CreateHandlers() (map[string]*common.HTTPHandler, error) {
-	codec := json.NewCodec()
+	codec := cjson.NewCodec()
 
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterCodec(codec, "application/json")
@@ -321,7 +312,7 @@ func (vm *VM) CreateHandlers() (map[string]*common.HTTPHandler, error) {
 
 func (vm *VM) CreateStaticHandlers() (map[string]*common.HTTPHandler, error) {
 	newServer := rpc.NewServer()
-	codec := json.NewCodec()
+	codec := cjson.NewCodec()
 	newServer.RegisterCodec(codec, "application/json")
 	newServer.RegisterCodec(codec, "application/json;charset=UTF-8")
 
@@ -414,9 +405,8 @@ func (vm *VM) FlushTxs() {
  */
 
 func (vm *VM) initGenesis(genesisBytes []byte) error {
-	genesisCodec := vm.parser.GenesisCodec()
 	genesis := Genesis{}
-	if _, err := genesisCodec.Unmarshal(genesisBytes, &genesis); err != nil {
+	if _, err := vm.genesisCodec.Unmarshal(genesisBytes, &genesis); err != nil {
 		return err
 	}
 
@@ -433,14 +423,15 @@ func (vm *VM) initGenesis(genesisBytes []byte) error {
 			return errGenesisAssetMustHaveState
 		}
 
-		tx := txs.Tx{
+		tx := Tx{
 			UnsignedTx: &genesisTx.CreateAssetTx,
 		}
-		if err := vm.parser.InitializeGenesisTx(&tx); err != nil {
+		if err := tx.SignSECP256K1Fx(vm.genesisCodec, nil); err != nil {
 			return err
 		}
 
 		txID := tx.ID()
+
 		if err := vm.Alias(txID, genesisTx.Alias); err != nil {
 			return err
 		}
@@ -463,7 +454,7 @@ func (vm *VM) initGenesis(genesisBytes []byte) error {
 	return nil
 }
 
-func (vm *VM) initState(tx txs.Tx) error {
+func (vm *VM) initState(tx Tx) error {
 	txID := tx.ID()
 	vm.ctx.Log.Info("initializing with AssetID %s", txID)
 	if err := vm.state.PutTx(txID, &tx); err != nil {
@@ -481,7 +472,7 @@ func (vm *VM) initState(tx txs.Tx) error {
 }
 
 func (vm *VM) parseTx(bytes []byte) (*UniqueTx, error) {
-	rawTx, err := vm.parser.Parse(bytes)
+	rawTx, err := vm.parsePrivateTx(bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -507,6 +498,20 @@ func (vm *VM) parseTx(bytes []byte) (*UniqueTx, error) {
 		return tx, vm.db.Commit()
 	}
 
+	return tx, nil
+}
+
+func (vm *VM) parsePrivateTx(txBytes []byte) (*Tx, error) {
+	tx := &Tx{}
+	_, err := vm.codec.Unmarshal(txBytes, tx)
+	if err != nil {
+		return nil, err
+	}
+	unsignedBytes, err := vm.codec.Marshal(codecVersion, &tx.UnsignedTx)
+	if err != nil {
+		return nil, err
+	}
+	tx.Initialize(unsignedBytes, txBytes)
 	return tx, nil
 }
 
@@ -555,6 +560,18 @@ func (vm *VM) getFx(val interface{}) (int, error) {
 	return fx, nil
 }
 
+// getParsedFx returns the parsedFx object for a given TransferableInput
+// or TransferableOutput object
+func (vm *VM) getParsedFx(val interface{}) (*parsedFx, error) {
+	idx, err := vm.getFx(val)
+	if err != nil {
+		return nil, err
+	}
+
+	fx := vm.fxs[idx]
+	return fx, nil
+}
+
 func (vm *VM) verifyFxUsage(fxID int, assetID ids.ID) bool {
 	// Check cache to see whether this asset supports this fx
 	fxIDsIntf, assetInCache := vm.assetToFxCache.Get(assetID)
@@ -570,7 +587,7 @@ func (vm *VM) verifyFxUsage(fxID int, assetID ids.ID) bool {
 	if status := tx.Status(); !status.Fetched() {
 		return false
 	}
-	createAssetTx, ok := tx.UnsignedTx.(*txs.CreateAssetTx)
+	createAssetTx, ok := tx.UnsignedTx.(*CreateAssetTx)
 	if !ok {
 		// This transaction was not an asset creation tx
 		return false
@@ -586,7 +603,7 @@ func (vm *VM) verifyFxUsage(fxID int, assetID ids.ID) bool {
 	return fxIDs.Contains(uint(fxID))
 }
 
-func (vm *VM) verifyTransferOfUTXO(tx txs.UnsignedTx, in *djtx.TransferableInput, cred verify.Verifiable, utxo *djtx.UTXO) error {
+func (vm *VM) verifyTransferOfUTXO(tx UnsignedTx, in *djtx.TransferableInput, cred verify.Verifiable, utxo *djtx.UTXO) error {
 	fxIndex, err := vm.getFx(cred)
 	if err != nil {
 		return err
@@ -606,7 +623,7 @@ func (vm *VM) verifyTransferOfUTXO(tx txs.UnsignedTx, in *djtx.TransferableInput
 	return fx.VerifyTransfer(tx, in.In, cred, utxo.Out)
 }
 
-func (vm *VM) verifyTransfer(tx txs.UnsignedTx, in *djtx.TransferableInput, cred verify.Verifiable) error {
+func (vm *VM) verifyTransfer(tx UnsignedTx, in *djtx.TransferableInput, cred verify.Verifiable) error {
 	utxo, err := vm.getUTXO(&in.UTXOID)
 	if err != nil {
 		return err
@@ -614,7 +631,7 @@ func (vm *VM) verifyTransfer(tx txs.UnsignedTx, in *djtx.TransferableInput, cred
 	return vm.verifyTransferOfUTXO(tx, in, cred, utxo)
 }
 
-func (vm *VM) verifyOperation(tx *txs.OperationTx, op *txs.Operation, cred verify.Verifiable) error {
+func (vm *VM) verifyOperation(tx UnsignedTx, op *Operation, cred verify.Verifiable) error {
 	opAssetID := op.AssetID()
 
 	numUTXOs := len(op.UTXOIDs)
@@ -752,13 +769,13 @@ func (vm *VM) SpendNFT(
 	groupID uint32,
 	to ids.ShortID,
 ) (
-	[]*txs.Operation,
+	[]*Operation,
 	[][]*crypto.PrivateKeySECP256K1R,
 	error,
 ) {
 	time := vm.clock.Unix()
 
-	ops := []*txs.Operation{}
+	ops := []*Operation{}
 	keys := [][]*crypto.PrivateKeySECP256K1R{}
 
 	for _, utxo := range utxos {
@@ -790,7 +807,7 @@ func (vm *VM) SpendNFT(
 		}
 
 		// add the new operation to the array
-		ops = append(ops, &txs.Operation{
+		ops = append(ops, &Operation{
 			Asset:   utxo.Asset,
 			UTXOIDs: []*djtx.UTXOID{&utxo.UTXOID},
 			Op: &nftfx.TransferOperation{
@@ -815,7 +832,7 @@ func (vm *VM) SpendNFT(
 		return nil, nil, errInsufficientFunds
 	}
 
-	txs.SortOperationsWithSigners(ops, keys, vm.parser.Codec())
+	sortOperationsWithSigners(ops, keys, vm.codec)
 	return ops, keys, nil
 }
 
@@ -874,13 +891,13 @@ func (vm *VM) Mint(
 	amounts map[ids.ID]uint64,
 	to ids.ShortID,
 ) (
-	[]*txs.Operation,
+	[]*Operation,
 	[][]*crypto.PrivateKeySECP256K1R,
 	error,
 ) {
 	time := vm.clock.Unix()
 
-	ops := []*txs.Operation{}
+	ops := []*Operation{}
 	keys := [][]*crypto.PrivateKeySECP256K1R{}
 
 	for _, utxo := range utxos {
@@ -909,7 +926,7 @@ func (vm *VM) Mint(
 		}
 
 		// add the operation to the array
-		ops = append(ops, &txs.Operation{
+		ops = append(ops, &Operation{
 			Asset:   utxo.Asset,
 			UTXOIDs: []*djtx.UTXOID{&utxo.UTXOID},
 			Op: &secp256k1fx.MintOperation{
@@ -937,7 +954,7 @@ func (vm *VM) Mint(
 		}
 	}
 
-	txs.SortOperationsWithSigners(ops, keys, vm.parser.Codec())
+	sortOperationsWithSigners(ops, keys, vm.codec)
 	return ops, keys, nil
 }
 
@@ -948,13 +965,13 @@ func (vm *VM) MintNFT(
 	payload []byte,
 	to ids.ShortID,
 ) (
-	[]*txs.Operation,
+	[]*Operation,
 	[][]*crypto.PrivateKeySECP256K1R,
 	error,
 ) {
 	time := vm.clock.Unix()
 
-	ops := []*txs.Operation{}
+	ops := []*Operation{}
 	keys := [][]*crypto.PrivateKeySECP256K1R{}
 
 	for _, utxo := range utxos {
@@ -983,7 +1000,7 @@ func (vm *VM) MintNFT(
 		}
 
 		// add the operation to the array
-		ops = append(ops, &txs.Operation{
+		ops = append(ops, &Operation{
 			Asset: djtx.Asset{ID: assetID},
 			UTXOIDs: []*djtx.UTXOID{
 				&utxo.UTXOID,
@@ -1008,7 +1025,7 @@ func (vm *VM) MintNFT(
 		return nil, nil, errAddressesCantMintAsset
 	}
 
-	txs.SortOperationsWithSigners(ops, keys, vm.parser.Codec())
+	sortOperationsWithSigners(ops, keys, vm.codec)
 	return ops, keys, nil
 }
 
@@ -1018,7 +1035,7 @@ func (vm *VM) selectChangeAddr(defaultAddr ids.ShortID, changeAddr string) (ids.
 	if changeAddr == "" {
 		return defaultAddr, nil
 	}
-	addr, err := djtx.ParseServiceAddress(vm, changeAddr)
+	addr, err := vm.ParseLocalAddress(changeAddr)
 	if err != nil {
 		return ids.ShortID{}, fmt.Errorf("couldn't parse changeAddr: %w", err)
 	}
@@ -1038,26 +1055,21 @@ func (vm *VM) lookupAssetID(asset string) (ids.ID, error) {
 }
 
 // This VM doesn't (currently) have any app-specific messages
-func (vm *VM) AppRequest(nodeID ids.NodeID, requestID uint32, deadline time.Time, request []byte) error {
+func (vm *VM) AppRequest(nodeID ids.ShortID, requestID uint32, deadline time.Time, request []byte) error {
 	return nil
 }
 
 // This VM doesn't (currently) have any app-specific messages
-func (vm *VM) AppResponse(nodeID ids.NodeID, requestID uint32, response []byte) error {
+func (vm *VM) AppResponse(nodeID ids.ShortID, requestID uint32, response []byte) error {
 	return nil
 }
 
 // This VM doesn't (currently) have any app-specific messages
-func (vm *VM) AppRequestFailed(nodeID ids.NodeID, requestID uint32) error {
+func (vm *VM) AppRequestFailed(nodeID ids.ShortID, requestID uint32) error {
 	return nil
 }
 
 // This VM doesn't (currently) have any app-specific messages
-func (vm *VM) AppGossip(nodeID ids.NodeID, msg []byte) error {
+func (vm *VM) AppGossip(nodeID ids.ShortID, msg []byte) error {
 	return nil
-}
-
-// UniqueTx de-duplicates the transaction.
-func (vm *VM) DeduplicateTx(tx *UniqueTx) *UniqueTx {
-	return vm.uniqueTxs.Deduplicate(tx).(*UniqueTx)
 }

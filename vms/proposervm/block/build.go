@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package block
@@ -57,7 +57,7 @@ func Build(
 		},
 		timestamp: timestamp,
 		cert:      cert,
-		proposer:  ids.NodeIDFromCert(cert),
+		proposer:  hashing.ComputeHash160Array(hashing.ComputeHash256(cert.Raw)),
 	}
 	var blockIntf SignedBlock = block
 

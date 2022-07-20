@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package proposervm
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/snow"
 	"github.com/lasthyphen/beacongo/snow/choices"
 	"github.com/lasthyphen/beacongo/snow/consensus/snowman"
 	"github.com/lasthyphen/beacongo/vms/proposervm/block"
@@ -37,13 +36,6 @@ type Block interface {
 	snowman.Block
 
 	getInnerBlk() snowman.Block
-
-	// After a state sync, we may need to update last accepted block data
-	// without propagating any changes to the innerVM.
-	// acceptOuterBlk and acceptInnerBlk allow controlling acceptance of outer
-	// and inner blocks.
-	acceptOuterBlk() error
-	acceptInnerBlk() error
 
 	verifyPreForkChild(child *preForkBlock) error
 	verifyPostForkChild(child *postForkBlock) error
@@ -110,9 +102,9 @@ func (p *postForkCommonComponents) Verify(parentTimestamp time.Time, parentPChai
 		return errTimeTooAdvanced
 	}
 
-	// If the node is currently syncing - we don't assume that the P-chain has
-	// been synced up to this point yet.
-	if p.vm.consensusState == snow.NormalOp {
+	// If the node is currently bootstrapping - we don't assume that the P-chain
+	// has been synced up to this point yet.
+	if p.vm.bootstrapped {
 		childID := child.ID()
 		currentPChainHeight, err := p.vm.ctx.ValidatorState.GetCurrentHeight()
 		if err != nil {

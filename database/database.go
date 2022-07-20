@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 // For ease of implementation, our database's interface matches Ethereum's
@@ -51,6 +51,12 @@ type KeyValueReaderWriterDeleter interface {
 	KeyValueDeleter
 }
 
+// Stater wraps the Stat method of a backing data store.
+type Stater interface {
+	// Stat returns a particular internal stat of the database.
+	Stat(property string) (string, error)
+}
+
 // Compacter wraps the Compact method of a backing data store.
 type Compacter interface {
 	// Compact the underlying DB for the given key range.
@@ -71,6 +77,7 @@ type Database interface {
 	KeyValueReaderWriterDeleter
 	Batcher
 	Iteratee
+	Stater
 	Compacter
 	io.Closer
 }

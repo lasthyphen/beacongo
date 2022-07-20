@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpcchainvm
@@ -10,20 +10,14 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
+	"github.com/lasthyphen/beacongo/api/proto/vmproto"
 	"github.com/lasthyphen/beacongo/snow/engine/snowman/block"
-	"github.com/lasthyphen/beacongo/vms/rpcchainvm/grpcutils"
-
-	vmpb "github.com/lasthyphen/beacongo/proto/pb/vm"
 )
-
-// protocolVersion should be bumped anytime changes are made which require
-// the plugin vm to upgrade to latest avalanchego release to be compatible.
-const protocolVersion = 14
 
 var (
 	// Handshake is a common handshake that is shared by plugin and host.
 	Handshake = plugin.HandshakeConfig{
-		ProtocolVersion:  protocolVersion,
+		ProtocolVersion:  11,
 		MagicCookieKey:   "VM_PLUGIN",
 		MagicCookieValue: "dynamic",
 	}
@@ -51,24 +45,12 @@ func New(vm block.ChainVM) plugin.Plugin {
 }
 
 // GRPCServer registers a new GRPC server.
-func (p *vmPlugin) GRPCServer(_ *plugin.GRPCBroker, s *grpc.Server) error {
-	vmpb.RegisterVMServer(s, NewServer(p.vm))
+func (p *vmPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	vmproto.RegisterVMServer(s, NewServer(p.vm, broker))
 	return nil
 }
 
 // GRPCClient returns a new GRPC client
-func (p *vmPlugin) GRPCClient(ctx context.Context, _ *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return NewClient(vmpb.NewVMClient(c)), nil
-}
-
-// Serve serves a ChainVM plugin using sane gRPC server defaults.
-func Serve(vm block.ChainVM) {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: Handshake,
-		Plugins: map[string]plugin.Plugin{
-			"vm": New(vm),
-		},
-		// ensure proper defaults
-		GRPCServer: grpcutils.NewDefaultServer,
-	})
+func (p *vmPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return NewClient(vmproto.NewVMClient(c), broker), nil
 }

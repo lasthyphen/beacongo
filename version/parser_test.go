@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package version
@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDefaultVersionParser(t *testing.T) {
-	v, err := DefaultParser.Parse("v1.2.3")
+func TestNewDefaultVersionParser(t *testing.T) {
+	p := NewDefaultParser()
+
+	v, err := p.Parse("v1.2.3")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, v)
@@ -27,13 +29,15 @@ func TestDefaultVersionParser(t *testing.T) {
 		"v1.2.z",
 	}
 	for _, badVersion := range badVersions {
-		_, err := DefaultParser.Parse(badVersion)
+		_, err := p.Parse(badVersion)
 		assert.Error(t, err)
 	}
 }
 
-func TestDefaultApplicationParser(t *testing.T) {
-	v, err := DefaultApplicationParser.Parse("avalanche/1.2.3")
+func TestNewDefaultApplicationParser(t *testing.T) {
+	p := NewDefaultApplicationParser()
+
+	v, err := p.Parse("avalanche/1.2.3")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, v)
@@ -53,7 +57,7 @@ func TestDefaultApplicationParser(t *testing.T) {
 		"avalanche/0.0.z",
 	}
 	for _, badVersion := range badVersions {
-		_, err := DefaultApplicationParser.Parse(badVersion)
+		_, err := p.Parse(badVersion)
 		assert.Error(t, err)
 	}
 }

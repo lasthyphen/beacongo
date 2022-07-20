@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package pubsub
@@ -12,7 +12,7 @@ import (
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/bloom"
 	"github.com/lasthyphen/beacongo/utils/constants"
-	"github.com/lasthyphen/beacongo/utils/formatting/address"
+	"github.com/lasthyphen/beacongo/utils/formatting"
 )
 
 func TestAddAddressesParseAddresses(t *testing.T) {
@@ -22,7 +22,7 @@ func TestAddAddressesParseAddresses(t *testing.T) {
 	hrp := constants.GetHRP(5)
 
 	addrID := ids.ShortID{1}
-	addrStr, err := address.Format(chainAlias, hrp, addrID[:])
+	addrStr, err := formatting.FormatAddress(chainAlias, hrp, addrID[:])
 	assert.NoError(err)
 
 	msg := &AddAddresses{JSONAddresses: api.JSONAddresses{

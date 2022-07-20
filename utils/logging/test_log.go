@@ -1,20 +1,18 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package logging
 
 import (
 	"errors"
-	"io"
+	"sync"
 )
 
 var (
-	// Discard is a mock WriterCloser that drops all writes and close requests
-	Discard io.WriteCloser = discard{}
-
 	errNoLoggerWrite = errors.New("NoLogger can't write")
 
-	_ Logger = NoLog{}
+	_ Logger         = NoLog{}
+	_ RotatingWriter = NoIOWriter{}
 )
 
 type NoLog struct{}
@@ -51,7 +49,47 @@ func (NoLog) RecoverAndExit(f, exit func()) { defer exit(); f() }
 
 func (NoLog) Stop() {}
 
-type discard struct{}
+func (NoLog) SetLogLevel(Level) {}
 
-func (discard) Write(p []byte) (int, error) { return len(p), nil }
-func (discard) Close() error                { return nil }
+func (NoLog) SetDisplayLevel(Level) {}
+
+func (NoLog) GetLogLevel() Level { return Off }
+
+func (NoLog) GetDisplayLevel() Level { return Off }
+
+func (NoLog) SetPrefix(string) {}
+
+func (NoLog) SetLoggingEnabled(bool) {}
+
+func (NoLog) SetDisplayingEnabled(bool) {}
+
+func (NoLog) SetContextualDisplayingEnabled(bool) {}
+
+// NoIOWriter is a mock Writer that does not write to any underlying source
+type NoIOWriter struct{}
+
+func (NoIOWriter) Initialize(Config) (int, error) { return 0, nil }
+
+func (NoIOWriter) Flush() error { return nil }
+
+func (NoIOWriter) Write(p []byte) (int, error) { return len(p), nil }
+
+func (NoIOWriter) WriteString(s string) (int, error) { return len(s), nil }
+
+func (NoIOWriter) Close() error { return nil }
+
+func (NoIOWriter) Rotate() error { return nil }
+
+func NewTestLog(config Config) (*Log, error) {
+	l := &Log{
+		config: config,
+		writer: NoIOWriter{},
+	}
+	l.needsFlush = sync.NewCond(&l.flushLock)
+
+	l.wg.Add(1)
+
+	go l.RecoverAndPanic(l.run)
+
+	return l, nil
+}

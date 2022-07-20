@@ -1,10 +1,10 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gsharedmemory
 
 import (
-	sharedmemorypb "github.com/lasthyphen/beacongo/proto/pb/sharedmemory"
+	"github.com/lasthyphen/beacongo/api/proto/gsharedmemoryproto"
 )
 
 type filteredBatch struct {
@@ -26,11 +26,11 @@ func (b *filteredBatch) Delete(key []byte) error {
 	return nil
 }
 
-func (b *filteredBatch) PutRequests() []*sharedmemorypb.BatchPut {
-	reqs := make([]*sharedmemorypb.BatchPut, len(b.writes))
+func (b *filteredBatch) PutRequests() []*gsharedmemoryproto.BatchPut {
+	reqs := make([]*gsharedmemoryproto.BatchPut, len(b.writes))
 	i := 0
 	for keyStr, value := range b.writes {
-		reqs[i] = &sharedmemorypb.BatchPut{
+		reqs[i] = &gsharedmemoryproto.BatchPut{
 			Key:   []byte(keyStr),
 			Value: value,
 		}
@@ -39,11 +39,11 @@ func (b *filteredBatch) PutRequests() []*sharedmemorypb.BatchPut {
 	return reqs
 }
 
-func (b *filteredBatch) DeleteRequests() []*sharedmemorypb.BatchDelete {
-	reqs := make([]*sharedmemorypb.BatchDelete, len(b.deletes))
+func (b *filteredBatch) DeleteRequests() []*gsharedmemoryproto.BatchDelete {
+	reqs := make([]*gsharedmemoryproto.BatchDelete, len(b.deletes))
 	i := 0
 	for keyStr := range b.deletes {
-		reqs[i] = &sharedmemorypb.BatchDelete{
+		reqs[i] = &gsharedmemoryproto.BatchDelete{
 			Key: []byte(keyStr),
 		}
 		i++

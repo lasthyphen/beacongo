@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package primary
@@ -20,10 +20,10 @@ func ExampleWallet() {
 	ctx := context.Background()
 	kc := secp256k1fx.NewKeychain(genesis.EWOQKey)
 
-	// NewWalletFromURI fetches the available UTXOs owned by [kc] on the network
-	// that [LocalAPIURI] is hosting.
+	// NewWallet fetches the available UTXOs owned by [kc] on the network that
+	// [LocalAPIURI] is hosting.
 	walletSyncStartTime := time.Now()
-	wallet, err := NewWalletFromURI(ctx, LocalAPIURI, kc)
+	wallet, err := NewWallet(ctx, LocalAPIURI, kc)
 	if err != nil {
 		fmt.Printf("failed to initialize wallet with: %s\n", err)
 		return

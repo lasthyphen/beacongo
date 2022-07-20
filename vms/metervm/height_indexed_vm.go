@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package metervm
@@ -8,26 +8,20 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/snowman/block"
 )
 
+var _ block.HeightIndexedChainVM = &blockVM{}
+
 func (vm *blockVM) VerifyHeightIndex() error {
-	if vm.hVM == nil {
+	hVM, ok := vm.ChainVM.(block.HeightIndexedChainVM)
+	if !ok {
 		return block.ErrHeightIndexedVMNotImplemented
 	}
-
-	start := vm.clock.Time()
-	err := vm.hVM.VerifyHeightIndex()
-	end := vm.clock.Time()
-	vm.blockMetrics.verifyHeightIndex.Observe(float64(end.Sub(start)))
-	return err
+	return hVM.VerifyHeightIndex()
 }
 
 func (vm *blockVM) GetBlockIDAtHeight(height uint64) (ids.ID, error) {
-	if vm.hVM == nil {
+	hVM, ok := vm.ChainVM.(block.HeightIndexedChainVM)
+	if !ok {
 		return ids.Empty, block.ErrHeightIndexedVMNotImplemented
 	}
-
-	start := vm.clock.Time()
-	blockID, err := vm.hVM.GetBlockIDAtHeight(height)
-	end := vm.clock.Time()
-	vm.blockMetrics.getBlockIDAtHeight.Observe(float64(end.Sub(start)))
-	return blockID, err
+	return hVM.GetBlockIDAtHeight(height)
 }

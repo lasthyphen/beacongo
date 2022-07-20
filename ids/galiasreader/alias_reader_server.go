@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package galiasreader
@@ -6,16 +6,15 @@ package galiasreader
 import (
 	"context"
 
+	"github.com/lasthyphen/beacongo/api/proto/galiasreaderproto"
 	"github.com/lasthyphen/beacongo/ids"
-
-	aliasreaderpb "github.com/lasthyphen/beacongo/proto/pb/aliasreader"
 )
 
-var _ aliasreaderpb.AliasReaderServer = &Server{}
+var _ galiasreaderproto.AliasReaderServer = &Server{}
 
 // Server enables alias lookups over RPC.
 type Server struct {
-	aliasreaderpb.UnsafeAliasReaderServer
+	galiasreaderproto.UnimplementedAliasReaderServer
 	aliaser ids.AliaserReader
 }
 
@@ -26,41 +25,41 @@ func NewServer(aliaser ids.AliaserReader) *Server {
 
 func (s *Server) Lookup(
 	_ context.Context,
-	req *aliasreaderpb.Alias,
-) (*aliasreaderpb.ID, error) {
+	req *galiasreaderproto.Alias,
+) (*galiasreaderproto.ID, error) {
 	id, err := s.aliaser.Lookup(req.Alias)
 	if err != nil {
 		return nil, err
 	}
-	return &aliasreaderpb.ID{
+	return &galiasreaderproto.ID{
 		Id: id[:],
 	}, nil
 }
 
 func (s *Server) PrimaryAlias(
 	_ context.Context,
-	req *aliasreaderpb.ID,
-) (*aliasreaderpb.Alias, error) {
+	req *galiasreaderproto.ID,
+) (*galiasreaderproto.Alias, error) {
 	id, err := ids.ToID(req.Id)
 	if err != nil {
 		return nil, err
 	}
 	alias, err := s.aliaser.PrimaryAlias(id)
-	return &aliasreaderpb.Alias{
+	return &galiasreaderproto.Alias{
 		Alias: alias,
 	}, err
 }
 
 func (s *Server) Aliases(
 	_ context.Context,
-	req *aliasreaderpb.ID,
-) (*aliasreaderpb.AliasList, error) {
+	req *galiasreaderproto.ID,
+) (*galiasreaderproto.AliasList, error) {
 	id, err := ids.ToID(req.Id)
 	if err != nil {
 		return nil, err
 	}
 	aliases, err := s.aliaser.Aliases(id)
-	return &aliasreaderpb.AliasList{
+	return &galiasreaderproto.AliasList{
 		Aliases: aliases,
 	}, err
 }

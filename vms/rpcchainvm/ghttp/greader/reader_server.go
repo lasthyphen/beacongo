@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package greader
@@ -7,14 +7,14 @@ import (
 	"context"
 	"io"
 
-	readerpb "github.com/lasthyphen/beacongo/proto/pb/io/reader"
+	"github.com/lasthyphen/beacongo/api/proto/greaderproto"
 )
 
-var _ readerpb.ReaderServer = &Server{}
+var _ greaderproto.ReaderServer = &Server{}
 
 // Server is an io.Reader that is managed over RPC.
 type Server struct {
-	readerpb.UnsafeReaderServer
+	greaderproto.UnimplementedReaderServer
 	reader io.Reader
 }
 
@@ -23,10 +23,10 @@ func NewServer(reader io.Reader) *Server {
 	return &Server{reader: reader}
 }
 
-func (s *Server) Read(ctx context.Context, req *readerpb.ReadRequest) (*readerpb.ReadResponse, error) {
+func (s *Server) Read(ctx context.Context, req *greaderproto.ReadRequest) (*greaderproto.ReadResponse, error) {
 	buf := make([]byte, int(req.Length))
 	n, err := s.reader.Read(buf)
-	resp := &readerpb.ReadResponse{
+	resp := &greaderproto.ReadResponse{
 		Read: buf[:n],
 	}
 	if err != nil {

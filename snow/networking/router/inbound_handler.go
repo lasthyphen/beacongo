@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package router
@@ -29,6 +29,6 @@ func (f InboundHandlerFunc) HandleInbound(msg message.InboundMessage) {
 type ExternalHandler interface {
 	InboundHandler
 
-	Connected(nodeID ids.NodeID, nodeVersion version.Application)
-	Disconnected(nodeID ids.NodeID)
+	Connected(nodeID ids.ShortID, nodeVersion version.Application)
+	Disconnected(nodeID ids.ShortID)
 }

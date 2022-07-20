@@ -1,9 +1,10 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
 
 import (
+	"crypto/x509"
 	"math"
 	"net"
 	"testing"
@@ -14,8 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/staking"
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/units"
 )
 
@@ -93,10 +93,7 @@ func TestCodecPackParseGzip(t *testing.T) {
 	c, err := NewCodecWithMemoryPool("", prometheus.DefaultRegisterer, 2*units.MiB, 10*time.Second)
 	assert.NoError(t, err)
 	id := ids.GenerateTestID()
-
-	tlsCert, err := staking.NewTLSCert()
-	assert.NoError(t, err)
-	cert := tlsCert.Leaf
+	cert := &x509.Certificate{}
 
 	msgs := []inboundMessage{
 		{
@@ -105,7 +102,7 @@ func TestCodecPackParseGzip(t *testing.T) {
 				NetworkID:      uint32(0),
 				NodeID:         uint32(1337),
 				MyTime:         uint64(time.Now().Unix()),
-				IP:             ips.IPPort{IP: net.IPv4(1, 2, 3, 4)},
+				IP:             utils.IPDesc{IP: net.IPv4(1, 2, 3, 4)},
 				VersionStr:     "v1.2.3",
 				VersionTime:    uint64(time.Now().Unix()),
 				SigBytes:       []byte{'y', 'e', 'e', 't'},
@@ -115,11 +112,11 @@ func TestCodecPackParseGzip(t *testing.T) {
 		{
 			op: PeerList,
 			fields: map[Field]interface{}{
-				Peers: []ips.ClaimedIPPort{
+				SignedPeers: []utils.IPCertDesc{
 					{
 						Cert:      cert,
-						IPPort:    ips.IPPort{IP: net.IPv4(1, 2, 3, 4)},
-						Timestamp: uint64(time.Now().Unix()),
+						IPDesc:    utils.IPDesc{IP: net.IPv4(1, 2, 3, 4)},
+						Time:      uint64(time.Now().Unix()),
 						Signature: make([]byte, 65),
 					},
 				},

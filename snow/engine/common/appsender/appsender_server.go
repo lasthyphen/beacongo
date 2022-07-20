@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package appsender
@@ -6,18 +6,16 @@ package appsender
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
+	"github.com/lasthyphen/beacongo/api/proto/appsenderproto"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow/engine/common"
-
-	appsenderpb "github.com/lasthyphen/beacongo/proto/pb/appsender"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-var _ appsenderpb.AppSenderServer = &Server{}
+var _ appsenderproto.AppSenderServer = &Server{}
 
 type Server struct {
-	appsenderpb.UnsafeAppSenderServer
+	appsenderproto.UnimplementedAppSenderServer
 	appSender common.AppSender
 }
 
@@ -26,10 +24,10 @@ func NewServer(appSender common.AppSender) *Server {
 	return &Server{appSender: appSender}
 }
 
-func (s *Server) SendAppRequest(_ context.Context, req *appsenderpb.SendAppRequestMsg) (*emptypb.Empty, error) {
-	nodeIDs := ids.NewNodeIDSet(len(req.NodeIds))
+func (s *Server) SendAppRequest(_ context.Context, req *appsenderproto.SendAppRequestMsg) (*emptypb.Empty, error) {
+	nodeIDs := ids.NewShortSet(len(req.NodeIds))
 	for _, nodeIDBytes := range req.NodeIds {
-		nodeID, err := ids.ToNodeID(nodeIDBytes)
+		nodeID, err := ids.ToShortID(nodeIDBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -39,8 +37,8 @@ func (s *Server) SendAppRequest(_ context.Context, req *appsenderpb.SendAppReque
 	return &emptypb.Empty{}, err
 }
 
-func (s *Server) SendAppResponse(_ context.Context, req *appsenderpb.SendAppResponseMsg) (*emptypb.Empty, error) {
-	nodeID, err := ids.ToNodeID(req.NodeId)
+func (s *Server) SendAppResponse(_ context.Context, req *appsenderproto.SendAppResponseMsg) (*emptypb.Empty, error) {
+	nodeID, err := ids.ToShortID(req.NodeId)
 	if err != nil {
 		return nil, err
 	}
@@ -48,15 +46,15 @@ func (s *Server) SendAppResponse(_ context.Context, req *appsenderpb.SendAppResp
 	return &emptypb.Empty{}, err
 }
 
-func (s *Server) SendAppGossip(_ context.Context, req *appsenderpb.SendAppGossipMsg) (*emptypb.Empty, error) {
+func (s *Server) SendAppGossip(_ context.Context, req *appsenderproto.SendAppGossipMsg) (*emptypb.Empty, error) {
 	err := s.appSender.SendAppGossip(req.Msg)
 	return &emptypb.Empty{}, err
 }
 
-func (s *Server) SendAppGossipSpecific(_ context.Context, req *appsenderpb.SendAppGossipSpecificMsg) (*emptypb.Empty, error) {
-	nodeIDs := ids.NewNodeIDSet(len(req.NodeIds))
+func (s *Server) SendAppGossipSpecific(_ context.Context, req *appsenderproto.SendAppGossipSpecificMsg) (*emptypb.Empty, error) {
+	nodeIDs := ids.NewShortSet(len(req.NodeIds))
 	for _, nodeIDBytes := range req.NodeIds {
-		nodeID, err := ids.ToNodeID(nodeIDBytes)
+		nodeID, err := ids.ToShortID(nodeIDBytes)
 		if err != nil {
 			return nil, err
 		}

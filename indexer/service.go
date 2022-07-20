@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package indexer
@@ -58,12 +58,12 @@ func (s *service) GetLastAccepted(_ *http.Request, args *GetLastAcceptedArgs, re
 	return err
 }
 
-type GetContainerByIndexArgs struct {
+type GetContainer struct {
 	Index    json.Uint64         `json:"index"`
 	Encoding formatting.Encoding `json:"encoding"`
 }
 
-func (s *service) GetContainerByIndex(_ *http.Request, args *GetContainerByIndexArgs, reply *FormattedContainer) error {
+func (s *service) GetContainerByIndex(_ *http.Request, args *GetContainer, reply *FormattedContainer) error {
 	container, err := s.Index.GetContainerByIndex(uint64(args.Index))
 	if err != nil {
 		return err
@@ -112,7 +112,8 @@ func (s *service) GetContainerRange(r *http.Request, args *GetContainerRangeArgs
 }
 
 type GetIndexArgs struct {
-	ContainerID ids.ID `json:"containerID"`
+	ContainerID ids.ID              `json:"containerID"`
+	Encoding    formatting.Encoding `json:"encoding"`
 }
 
 type GetIndexResponse struct {
@@ -125,15 +126,11 @@ func (s *service) GetIndex(r *http.Request, args *GetIndexArgs, reply *GetIndexR
 	return err
 }
 
-type IsAcceptedArgs struct {
-	ContainerID ids.ID `json:"containerID"`
-}
-
 type IsAcceptedResponse struct {
 	IsAccepted bool `json:"isAccepted"`
 }
 
-func (s *service) IsAccepted(r *http.Request, args *IsAcceptedArgs, reply *IsAcceptedResponse) error {
+func (s *service) IsAccepted(r *http.Request, args *GetIndexArgs, reply *IsAcceptedResponse) error {
 	_, err := s.Index.GetIndex(args.ContainerID)
 	if err == nil {
 		reply.IsAccepted = true
@@ -146,12 +143,7 @@ func (s *service) IsAccepted(r *http.Request, args *IsAcceptedArgs, reply *IsAcc
 	return err
 }
 
-type GetContainerByIDArgs struct {
-	ContainerID ids.ID              `json:"containerID"`
-	Encoding    formatting.Encoding `json:"encoding"`
-}
-
-func (s *service) GetContainerByID(r *http.Request, args *GetContainerByIDArgs, reply *FormattedContainer) error {
+func (s *service) GetContainerByID(r *http.Request, args *GetIndexArgs, reply *FormattedContainer) error {
 	container, err := s.Index.GetContainerByID(args.ContainerID)
 	if err != nil {
 		return err

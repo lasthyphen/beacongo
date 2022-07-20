@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package versiondb
@@ -149,6 +149,16 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 		keys:     keys,
 		values:   values,
 	}
+}
+
+func (db *Database) Stat(stat string) (string, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	if db.mem == nil {
+		return "", database.ErrClosed
+	}
+	return db.db.Stat(stat)
 }
 
 func (db *Database) Compact(start, limit []byte) error {
@@ -382,9 +392,7 @@ func (it *iterator) Next() bool {
 			nextKey := it.keys[0]
 			nextValue := it.values[0]
 
-			it.keys[0] = ""
 			it.keys = it.keys[1:]
-			it.values[0].value = nil
 			it.values = it.values[1:]
 
 			if !nextValue.delete {
@@ -406,9 +414,7 @@ func (it *iterator) Next() bool {
 			dbStringKey := string(dbKey)
 			switch {
 			case memKey < dbStringKey:
-				it.keys[0] = ""
 				it.keys = it.keys[1:]
-				it.values[0].value = nil
 				it.values = it.values[1:]
 
 				if !memValue.delete {
@@ -422,9 +428,7 @@ func (it *iterator) Next() bool {
 				it.exhausted = !it.Iterator.Next()
 				return true
 			default:
-				it.keys[0] = ""
 				it.keys = it.keys[1:]
-				it.values[0].value = nil
 				it.values = it.values[1:]
 				it.exhausted = !it.Iterator.Next()
 

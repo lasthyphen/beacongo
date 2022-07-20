@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gwriter
@@ -7,14 +7,14 @@ import (
 	"context"
 	"io"
 
-	writerpb "github.com/lasthyphen/beacongo/proto/pb/io/writer"
+	"github.com/lasthyphen/beacongo/api/proto/gwriterproto"
 )
 
-var _ writerpb.WriterServer = &Server{}
+var _ gwriterproto.WriterServer = &Server{}
 
 // Server is an http.Handler that is managed over RPC.
 type Server struct {
-	writerpb.UnsafeWriterServer
+	gwriterproto.UnimplementedWriterServer
 	writer io.Writer
 }
 
@@ -23,9 +23,9 @@ func NewServer(writer io.Writer) *Server {
 	return &Server{writer: writer}
 }
 
-func (s *Server) Write(ctx context.Context, req *writerpb.WriteRequest) (*writerpb.WriteResponse, error) {
+func (s *Server) Write(ctx context.Context, req *gwriterproto.WriteRequest) (*gwriterproto.WriteResponse, error) {
 	n, err := s.writer.Write(req.Payload)
-	resp := &writerpb.WriteResponse{
+	resp := &gwriterproto.WriteResponse{
 		Written: int32(n),
 	}
 	if err != nil {

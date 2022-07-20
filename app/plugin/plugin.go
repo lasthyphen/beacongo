@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package plugin
@@ -10,9 +10,8 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
+	"github.com/lasthyphen/beacongo/api/proto/pluginproto"
 	"github.com/lasthyphen/beacongo/app"
-
-	pluginpb "github.com/lasthyphen/beacongo/proto/pb/plugin"
 )
 
 const Name = "nodeProcess"
@@ -46,11 +45,11 @@ func New(app app.App) plugin.Plugin {
 
 // GRPCServer registers a new GRPC server.
 func (p *appPlugin) GRPCServer(_ *plugin.GRPCBroker, s *grpc.Server) error {
-	pluginpb.RegisterNodeServer(s, NewServer(p.app))
+	pluginproto.RegisterNodeServer(s, NewServer(p.app))
 	return nil
 }
 
 // GRPCClient returns a new GRPC client
 func (p *appPlugin) GRPCClient(_ context.Context, _ *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return NewClient(pluginpb.NewNodeClient(c)), nil
+	return NewClient(pluginproto.NewNodeClient(c)), nil
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package health
@@ -20,7 +20,7 @@ func TestServiceResponses(t *testing.T) {
 		return "", nil
 	})
 
-	h, err := New(logging.NoLog{}, prometheus.NewRegistry())
+	h, err := New(prometheus.NewRegistry())
 	assert.NoError(err)
 
 	s := &Service{

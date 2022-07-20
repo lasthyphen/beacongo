@@ -2,7 +2,7 @@
 // +build linux,amd64,rocksdballowed
 
 // ^ Only build this file if this computer linux AND it's AMD64 AND rocksdb is allowed
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 package rocksdb
 
@@ -14,8 +14,6 @@ import (
 	"sync"
 
 	"github.com/linxGnu/grocksdb"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/database/nodb"
@@ -57,7 +55,7 @@ type Database struct {
 
 // New returns a wrapped RocksDB object.
 // TODO: use configBytes to config the database options
-func New(file string, _ []byte, _ logging.Logger, _ string, _ prometheus.Registerer) (database.Database, error) {
+func New(file string, configBytes []byte, log logging.Logger) (database.Database, error) {
 	filter := grocksdb.NewBloomFilter(BitsPerKey)
 
 	blockOptions := grocksdb.NewDefaultBlockBasedTableOptions()
@@ -248,6 +246,11 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 		db:     db,
 		prefix: prefix,
 	}
+}
+
+// Stat returns a particular internal stat of the database.
+func (db *Database) Stat(property string) (string, error) {
+	return "", database.ErrNotFound
 }
 
 // Compact the underlying DB for the given key range.

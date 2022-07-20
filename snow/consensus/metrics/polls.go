@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package metrics
@@ -8,15 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var _ Polls = &polls{}
-
 // Polls reports commonly used consensus poll metrics.
-type Polls interface {
-	Successful()
-	Failed()
-}
-
-type polls struct {
+type Polls struct {
 	// numFailedPolls keeps track of the number of polls that failed
 	numFailedPolls prometheus.Counter
 
@@ -24,31 +17,32 @@ type polls struct {
 	numSuccessfulPolls prometheus.Counter
 }
 
-func NewPolls(namespace string, reg prometheus.Registerer) (Polls, error) {
-	p := &polls{
-		numSuccessfulPolls: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "polls_successful",
-			Help:      "Number of successful polls",
-		}),
-		numFailedPolls: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "polls_failed",
-			Help:      "Number of failed polls",
-		}),
-	}
+// Initialize the metrics.
+func (m *Polls) Initialize(namespace string, reg prometheus.Registerer) error {
+	m.numFailedPolls = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: namespace,
+		Name:      "polls_failed",
+		Help:      "Number of failed polls",
+	})
+
+	m.numSuccessfulPolls = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: namespace,
+		Name:      "polls_successful",
+		Help:      "Number of successful polls",
+	})
+
 	errs := wrappers.Errs{}
 	errs.Add(
-		reg.Register(p.numFailedPolls),
-		reg.Register(p.numSuccessfulPolls),
+		reg.Register(m.numFailedPolls),
+		reg.Register(m.numSuccessfulPolls),
 	)
-	return p, errs.Err
+	return errs.Err
 }
 
-func (p *polls) Failed() {
-	p.numFailedPolls.Inc()
+func (m *Polls) Failed() {
+	m.numFailedPolls.Inc()
 }
 
-func (p *polls) Successful() {
-	p.numSuccessfulPolls.Inc()
+func (m *Polls) Successful() {
+	m.numSuccessfulPolls.Inc()
 }

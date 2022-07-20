@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package ipcs
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/snow"
+	"github.com/lasthyphen/beacongo/snow/triggers"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
 )
@@ -31,23 +31,23 @@ type context struct {
 // ChainIPCs maintains IPCs for a set of chains
 type ChainIPCs struct {
 	context
-	chains                 map[ids.ID]*EventSockets
-	consensusAcceptorGroup snow.AcceptorGroup
-	decisionAcceptorGroup  snow.AcceptorGroup
+	chains          map[ids.ID]*EventSockets
+	consensusEvents *triggers.EventDispatcher
+	decisionEvents  *triggers.EventDispatcher
 }
 
 // NewChainIPCs creates a new *ChainIPCs that writes consensus and decision
 // events to IPC sockets
-func NewChainIPCs(log logging.Logger, path string, networkID uint32, consensusAcceptorGroup, decisionAcceptorGroup snow.AcceptorGroup, defaultChainIDs []ids.ID) (*ChainIPCs, error) {
+func NewChainIPCs(log logging.Logger, path string, networkID uint32, consensusEvents *triggers.EventDispatcher, decisionEvents *triggers.EventDispatcher, defaultChainIDs []ids.ID) (*ChainIPCs, error) {
 	cipcs := &ChainIPCs{
 		context: context{
 			log:       log,
 			networkID: networkID,
 			path:      path,
 		},
-		chains:                 make(map[ids.ID]*EventSockets),
-		consensusAcceptorGroup: consensusAcceptorGroup,
-		decisionAcceptorGroup:  decisionAcceptorGroup,
+		chains:          make(map[ids.ID]*EventSockets),
+		consensusEvents: consensusEvents,
+		decisionEvents:  decisionEvents,
 	}
 	for _, chainID := range defaultChainIDs {
 		if _, err := cipcs.Publish(chainID); err != nil {
@@ -64,7 +64,7 @@ func (cipcs *ChainIPCs) Publish(chainID ids.ID) (*EventSockets, error) {
 		return es, nil
 	}
 
-	es, err := newEventSockets(cipcs.context, chainID, cipcs.consensusAcceptorGroup, cipcs.decisionAcceptorGroup)
+	es, err := newEventSockets(cipcs.context, chainID, cipcs.consensusEvents, cipcs.decisionEvents)
 	if err != nil {
 		cipcs.log.Error("can't create ipcs: %s", err)
 		return nil, err

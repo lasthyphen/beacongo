@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -10,7 +10,6 @@ import (
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
-	"github.com/lasthyphen/beacongo/vms/platformvm/stakeable"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 )
 
@@ -189,7 +188,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			description: "locked one input, no outputs, no fee",
 			utxos: []*djtx.UTXO{{
 				Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-				Out: &stakeable.LockOut{
+				Out: &StakeableLockOut{
 					Locktime: uint64(now.Unix()) + 1,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt: 1,
@@ -198,7 +197,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			}},
 			ins: []*djtx.TransferableInput{{
 				Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-				In: &stakeable.LockIn{
+				In: &StakeableLockIn{
 					Locktime: uint64(now.Unix()) + 1,
 					TransferableIn: &secp256k1fx.TransferInput{
 						Amt: 1,
@@ -217,7 +216,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			description: "locked one input, no outputs, positive fee",
 			utxos: []*djtx.UTXO{{
 				Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-				Out: &stakeable.LockOut{
+				Out: &StakeableLockOut{
 					Locktime: uint64(now.Unix()) + 1,
 					TransferableOut: &secp256k1fx.TransferOutput{
 						Amt: 1,
@@ -226,7 +225,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			}},
 			ins: []*djtx.TransferableInput{{
 				Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-				In: &stakeable.LockIn{
+				In: &StakeableLockIn{
 					Locktime: uint64(now.Unix()) + 1,
 					TransferableIn: &secp256k1fx.TransferInput{
 						Amt: 1,
@@ -246,7 +245,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			utxos: []*djtx.UTXO{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					Out: &stakeable.LockOut{
+					Out: &StakeableLockOut{
 						Locktime: uint64(now.Unix()) + 1,
 						TransferableOut: &secp256k1fx.TransferOutput{
 							Amt: 1,
@@ -263,7 +262,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			ins: []*djtx.TransferableInput{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					In: &stakeable.LockIn{
+					In: &StakeableLockIn{
 						Locktime: uint64(now.Unix()) + 1,
 						TransferableIn: &secp256k1fx.TransferInput{
 							Amt: 1,
@@ -280,7 +279,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			outs: []*djtx.TransferableOutput{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					Out: &stakeable.LockOut{
+					Out: &StakeableLockOut{
 						Locktime: uint64(now.Unix()) + 1,
 						TransferableOut: &secp256k1fx.TransferOutput{
 							Amt: 1,
@@ -301,7 +300,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			utxos: []*djtx.UTXO{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					Out: &stakeable.LockOut{
+					Out: &StakeableLockOut{
 						Locktime: uint64(now.Unix()) + 1,
 						TransferableOut: &secp256k1fx.TransferOutput{
 							Amt: 1,
@@ -318,7 +317,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			ins: []*djtx.TransferableInput{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					In: &stakeable.LockIn{
+					In: &StakeableLockIn{
 						Locktime: uint64(now.Unix()) + 1,
 						TransferableIn: &secp256k1fx.TransferInput{
 							Amt: 1,
@@ -335,7 +334,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			outs: []*djtx.TransferableOutput{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					Out: &stakeable.LockOut{
+					Out: &StakeableLockOut{
 						Locktime: uint64(now.Unix()) + 1,
 						TransferableOut: &secp256k1fx.TransferOutput{
 							Amt: 2,
@@ -356,7 +355,7 @@ func TestSemanticVerifySpendUTXOs(t *testing.T) {
 			utxos: []*djtx.UTXO{
 				{
 					Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
-					Out: &stakeable.LockOut{
+					Out: &StakeableLockOut{
 						Locktime: uint64(now.Unix()) - 1,
 						TransferableOut: &secp256k1fx.TransferOutput{
 							Amt: 1,

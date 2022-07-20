@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package x
@@ -9,7 +9,6 @@ import (
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow/choices"
 	"github.com/lasthyphen/beacongo/vms/avm"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
@@ -62,7 +61,7 @@ type Wallet interface {
 	//
 	// - [operations] specifies the state changes to perform.
 	IssueOperationTx(
-		operations []*txs.Operation,
+		operations []*avm.Operation,
 		options ...common.Option,
 	) (ids.ID, error)
 
@@ -133,13 +132,13 @@ type Wallet interface {
 
 	// IssueUnsignedTx signs and issues the unsigned tx.
 	IssueUnsignedTx(
-		utx txs.UnsignedTx,
+		utx avm.UnsignedTx,
 		options ...common.Option,
 	) (ids.ID, error)
 
 	// IssueTx issues the signed tx.
 	IssueTx(
-		tx *txs.Tx,
+		tx *avm.Tx,
 		options ...common.Option,
 	) (ids.ID, error)
 }
@@ -195,7 +194,7 @@ func (w *wallet) IssueCreateAssetTx(
 }
 
 func (w *wallet) IssueOperationTx(
-	operations []*txs.Operation,
+	operations []*avm.Operation,
 	options ...common.Option,
 ) (ids.ID, error) {
 	utx, err := w.builder.NewOperationTx(operations, options...)
@@ -277,7 +276,7 @@ func (w *wallet) IssueExportTx(
 }
 
 func (w *wallet) IssueUnsignedTx(
-	utx txs.UnsignedTx,
+	utx avm.UnsignedTx,
 	options ...common.Option,
 ) (ids.ID, error) {
 	ops := common.NewOptions(options)
@@ -291,7 +290,7 @@ func (w *wallet) IssueUnsignedTx(
 }
 
 func (w *wallet) IssueTx(
-	tx *txs.Tx,
+	tx *avm.Tx,
 	options ...common.Option,
 ) (ids.ID, error) {
 	ops := common.NewOptions(options)

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpcchainvm
@@ -6,35 +6,47 @@ package rpcchainvm
 import (
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"path/filepath"
+
+	"google.golang.org/grpc"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 
 	"github.com/lasthyphen/beacongo/snow"
-	"github.com/lasthyphen/beacongo/utils/resource"
+	"github.com/lasthyphen/beacongo/utils/math"
 	"github.com/lasthyphen/beacongo/utils/subprocess"
-	"github.com/lasthyphen/beacongo/vms"
-	"github.com/lasthyphen/beacongo/vms/rpcchainvm/grpcutils"
 )
 
 var (
 	errWrongVM = errors.New("wrong vm type")
 
-	_ vms.Factory = &factory{}
+	serverOptions = []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(math.MaxInt),
+		grpc.MaxSendMsgSize(math.MaxInt),
+	}
+	dialOptions = []grpc.DialOption{
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(math.MaxInt)),
+	}
+
+	_ Factory = &factory{}
 )
 
-type factory struct {
-	path           string
-	processTracker resource.ProcessTracker
+type Factory interface {
+	// New returns an instance of a virtual machine.
+	New(*snow.Context) (interface{}, error)
 }
 
-func NewFactory(path string, processTracker resource.ProcessTracker) vms.Factory {
+type factory struct {
+	path string
+}
+
+func NewFactory(path string) Factory {
 	return &factory{
-		path:           path,
-		processTracker: processTracker,
+		path: path,
 	}
 }
 
@@ -57,7 +69,7 @@ func (f *factory) New(ctx *snow.Context) (interface{}, error) {
 		// We set managed to true so that we can call plugin.CleanupClients on
 		// node shutdown to ensure every plugin subprocess is killed.
 		Managed:         true,
-		GRPCDialOptions: grpcutils.DefaultDialOptions,
+		GRPCDialOptions: dialOptions,
 	}
 	if ctx != nil {
 		log.SetOutput(ctx.Log)
@@ -67,10 +79,10 @@ func (f *factory) New(ctx *snow.Context) (interface{}, error) {
 			Level:  hclog.Info,
 		})
 	} else {
-		log.SetOutput(io.Discard)
-		config.Stderr = io.Discard
+		log.SetOutput(ioutil.Discard)
+		config.Stderr = ioutil.Discard
 		config.Logger = hclog.New(&hclog.LoggerOptions{
-			Output: io.Discard,
+			Output: ioutil.Discard,
 		})
 	}
 	client := plugin.NewClient(config)
@@ -98,6 +110,7 @@ func (f *factory) New(ctx *snow.Context) (interface{}, error) {
 		return nil, pluginErr(errWrongVM)
 	}
 
-	vm.SetProcess(ctx, client, f.processTracker)
+	vm.SetProcess(client)
+	vm.ctx = ctx
 	return vm, nil
 }

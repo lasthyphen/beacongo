@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -12,7 +12,6 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/common"
 	"github.com/lasthyphen/beacongo/utils/crypto"
 	"github.com/lasthyphen/beacongo/utils/units"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 )
@@ -50,7 +49,7 @@ func TestSetsAndGets(t *testing.T) {
 		Out:   &djtx.TestVerifiable{},
 	}
 
-	tx := &txs.Tx{UnsignedTx: &txs.BaseTx{BaseTx: djtx.BaseTx{
+	tx := &Tx{UnsignedTx: &BaseTx{BaseTx: djtx.BaseTx{
 		NetworkID:    networkID,
 		BlockchainID: chainID,
 		Ins: []*djtx.TransferableInput{{
@@ -69,7 +68,7 @@ func TestSetsAndGets(t *testing.T) {
 			},
 		}},
 	}}}
-	if err := tx.SignSECP256K1Fx(vm.parser.Codec(), [][]*crypto.PrivateKeySECP256K1R{{keys[0]}}); err != nil {
+	if err := tx.SignSECP256K1Fx(vm.codec, [][]*crypto.PrivateKeySECP256K1R{{keys[0]}}); err != nil {
 		t.Fatal(err)
 	}
 

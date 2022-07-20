@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package manager
@@ -83,8 +83,6 @@ func NewRocksDB(
 	dbConfig []byte,
 	log logging.Logger,
 	currentVersion version.Version,
-	namespace string,
-	reg prometheus.Registerer,
 ) (Manager, error) {
 	return new(
 		rocksdb.New,
@@ -92,8 +90,6 @@ func NewRocksDB(
 		dbConfig,
 		log,
 		currentVersion,
-		namespace,
-		reg,
 	)
 }
 
@@ -106,8 +102,6 @@ func NewLevelDB(
 	dbConfig []byte,
 	log logging.Logger,
 	currentVersion version.Version,
-	namespace string,
-	reg prometheus.Registerer,
 ) (Manager, error) {
 	return new(
 		leveldb.New,
@@ -115,8 +109,6 @@ func NewLevelDB(
 		dbConfig,
 		log,
 		currentVersion,
-		namespace,
-		reg,
 	)
 }
 
@@ -125,17 +117,16 @@ func NewLevelDB(
 // [includePreviousVersions], opens previous database versions and includes them
 // in the returned Manager.
 func new(
-	newDB func(string, []byte, logging.Logger, string, prometheus.Registerer) (database.Database, error),
+	newDB func(string, []byte, logging.Logger) (database.Database, error),
 	dbDirPath string,
 	dbConfig []byte,
 	log logging.Logger,
 	currentVersion version.Version,
-	namespace string,
-	reg prometheus.Registerer,
 ) (Manager, error) {
+	parser := version.NewDefaultParser()
 	currentDBPath := filepath.Join(dbDirPath, currentVersion.String())
 
-	currentDB, err := newDB(currentDBPath, dbConfig, log, namespace, reg)
+	currentDB, err := newDB(currentDBPath, dbConfig, log)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create db at %s: %w", currentDBPath, err)
 	}
@@ -170,36 +161,30 @@ func new(
 			return nil
 		}
 		_, dbName := filepath.Split(path)
-		dbVersion, err := version.DefaultParser.Parse(dbName)
+		version, err := parser.Parse(dbName)
 		if err != nil {
 			// If the database directory contains any directories that don't
 			// match the expected version format, ignore them.
 			return filepath.SkipDir
 		}
 
-		// If [dbVersion] is greater than or equal to the specified version
+		// If [version] is greater than or equal to the specified version
 		// skip over creating the new database to avoid creating the same db
 		// twice or creating a database with a version ahead of the desired one.
-		if cmp := dbVersion.Compare(currentVersion); cmp >= 0 {
+		if cmp := version.Compare(currentVersion); cmp >= 0 {
 			return filepath.SkipDir
 		}
 
-		versionStr := strings.ReplaceAll(dbName, ".", "_")
-		var dbNamespace string
-		if len(namespace) > 0 {
-			dbNamespace = fmt.Sprintf("%s_%s", namespace, versionStr)
-		} else {
-			dbNamespace = versionStr
-		}
-
-		db, err := newDB(path, dbConfig, log, dbNamespace, reg)
+		db, err := newDB(path, dbConfig, log)
 		if err != nil {
 			return fmt.Errorf("couldn't create db at %s: %w", path, err)
 		}
 
+		wrappedDB := corruptabledb.New(db)
+
 		manager.databases = append(manager.databases, &VersionedDatabase{
-			Database: corruptabledb.New(db),
-			Version:  dbVersion,
+			Database: wrappedDB,
+			Version:  version,
 		})
 
 		return filepath.SkipDir

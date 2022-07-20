@@ -2,7 +2,7 @@
 // +build linux,amd64,rocksdballowed
 
 // ^ Only build this file if this computer runs Linux AND is AMD64 AND rocksdb is allowed
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package manager
@@ -11,13 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/lasthyphen/beacongo/database/rocksdb"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/version"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewSingleRocksDB(t *testing.T) {
@@ -26,7 +23,7 @@ func TestNewSingleRocksDB(t *testing.T) {
 	v1 := version.DefaultVersion1_0_0
 
 	dbPath := filepath.Join(dir, v1.String())
-	db, err := rocksdb.New(dbPath, nil, logging.NoLog{}, "", prometheus.NewRegistry())
+	db, err := rocksdb.New(dbPath, nil, logging.NoLog{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +33,7 @@ func TestNewSingleRocksDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	manager, err := NewRocksDB(dir, nil, logging.NoLog{}, v1, "", prometheus.NewRegistry())
+	manager, err := NewRocksDB(dir, nil, logging.NoLog{}, v1)
 	if err != nil {
 		t.Fatal(err)
 	}

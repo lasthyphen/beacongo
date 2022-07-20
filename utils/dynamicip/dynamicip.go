@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package dynamicip
@@ -7,13 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/lasthyphen/beacongo/utils/ips"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/logging"
 )
 
@@ -97,7 +97,7 @@ func (r *IFConfigResolver) Resolve() (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	ip, err := io.ReadAll(resp.Body)
+	ip, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// Drop any error to report the original error
 		_ = resp.Body.Close()
@@ -146,10 +146,10 @@ func (noDynamicIP *NoDynamicIP) Stop() {}
 // Returns a new dynamic IP that resolves and updates [ip] to our public IP every [updateTimeout].
 // Uses [dynamicResolver] to resolve our public ip.
 // Stops updating when Stop() is called.
-func NewDynamicIPManager(resolver Resolver, updateTimeout time.Duration, log logging.Logger, ip ips.DynamicIPPort) IPManager {
+func NewDynamicIPManager(resolver Resolver, updateTimeout time.Duration, log logging.Logger, ip *utils.DynamicIPDesc) IPManager {
 	if resolver.IsResolver() {
 		updater := &DynamicIP{
-			DynamicIPPort: ip,
+			DynamicIPDesc: ip,
 			tickerCloser:  make(chan struct{}),
 			log:           log,
 			updateTimeout: updateTimeout,
@@ -163,7 +163,7 @@ func NewDynamicIPManager(resolver Resolver, updateTimeout time.Duration, log log
 
 // DynamicIP is an IP address that gets periodically updated to our public IP
 type DynamicIP struct {
-	ips.DynamicIPPort
+	*utils.DynamicIPDesc
 	tickerCloser  chan struct{}
 	log           logging.Logger
 	updateTimeout time.Duration
@@ -197,8 +197,8 @@ func (dynamicIP *DynamicIP) update(resolver Resolver) {
 		dynamicIP.log.Warn("Fetch external IP failed %s", err)
 		return
 	}
-	oldIP := dynamicIP.IPPort().IP
-	dynamicIP.SetIP(newIP)
+	oldIP := dynamicIP.IP().IP
+	dynamicIP.UpdateIP(newIP)
 	if !oldIP.Equal(newIP) {
 		dynamicIP.log.Info("ExternalIP updated to %s", newIP)
 	}

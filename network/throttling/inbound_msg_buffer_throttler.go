@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package throttling
@@ -22,8 +22,8 @@ func newInboundMsgBufferThrottler(
 ) (*inboundMsgBufferThrottler, error) {
 	t := &inboundMsgBufferThrottler{
 		maxProcessingMsgsPerNode: maxProcessingMsgsPerNode,
-		awaitingAcquire:          make(map[ids.NodeID][]chan struct{}),
-		nodeToNumProcessingMsgs:  make(map[ids.NodeID]uint64),
+		awaitingAcquire:          make(map[ids.ShortID][]chan struct{}),
+		nodeToNumProcessingMsgs:  make(map[ids.ShortID]uint64),
 	}
 	return t, t.metrics.initialize(namespace, registerer)
 }
@@ -44,22 +44,21 @@ type inboundMsgBufferThrottler struct {
 	maxProcessingMsgsPerNode uint64
 	// Node ID --> Number of messages from this node we're currently processing.
 	// Must only be accessed when [lock] is held.
-	nodeToNumProcessingMsgs map[ids.NodeID]uint64
+	nodeToNumProcessingMsgs map[ids.ShortID]uint64
 	// Node ID --> Channels where each channel, when closed,
 	// causes a goroutine waiting in Acquire to return.
 	// The first element corresponds to the goroutine that has been waiting
 	// longest to acquire space on the message buffer for the given node ID,
 	// the second element the second longest, etc.
 	// Must only be accessed when [lock] is held.
-	awaitingAcquire map[ids.NodeID][]chan struct{}
+	awaitingAcquire map[ids.ShortID][]chan struct{}
 }
 
 // Acquire returns when we've acquired space on the inbound message
 // buffer so that we can read a message from [nodeID].
 // Release([nodeID]) must be called (!) when done processing the message
 // (or when we give up trying to read the message.)
-// TODO pass in a context here to allow early cancellation.
-func (t *inboundMsgBufferThrottler) Acquire(nodeID ids.NodeID) {
+func (t *inboundMsgBufferThrottler) Acquire(nodeID ids.ShortID) {
 	startTime := time.Now()
 	defer func() {
 		t.metrics.acquireLatency.Observe(float64(time.Since(startTime)))
@@ -88,7 +87,7 @@ func (t *inboundMsgBufferThrottler) Acquire(nodeID ids.NodeID) {
 
 // Release marks that we've finished processing a message from [nodeID]
 // and can release the space it took on the inbound message buffer.
-func (t *inboundMsgBufferThrottler) Release(nodeID ids.NodeID) {
+func (t *inboundMsgBufferThrottler) Release(nodeID ids.ShortID) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -115,8 +114,7 @@ func (t *inboundMsgBufferThrottler) Release(nodeID ids.NodeID) {
 	if len(waiting) == 1 {
 		delete(t.awaitingAcquire, nodeID)
 	} else {
-		waiting[0] = nil
-		t.awaitingAcquire[nodeID] = waiting[1:]
+		t.awaitingAcquire[nodeID] = t.awaitingAcquire[nodeID][1:]
 	}
 }
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -21,7 +21,6 @@ import (
 	"github.com/lasthyphen/beacongo/utils/math"
 	"github.com/lasthyphen/beacongo/version"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
-	"github.com/lasthyphen/beacongo/vms/platformvm/config"
 	"github.com/lasthyphen/beacongo/vms/platformvm/reward"
 	"github.com/lasthyphen/beacongo/vms/platformvm/status"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
@@ -202,7 +201,7 @@ func TestRewardDelegatorTxExecuteOnCommit(t *testing.T) {
 
 	vdrStartTime := uint64(defaultValidateStartTime.Unix()) + 1
 	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
-	vdrNodeID := ids.GenerateTestNodeID()
+	vdrNodeID := ids.GenerateTestShortID()
 	vdrTx, err := vm.newAddValidatorTx(
 		vm.MinValidatorStake, // stakeAmt
 		vdrStartTime,
@@ -307,7 +306,7 @@ func TestRewardDelegatorTxExecuteOnAbort(t *testing.T) {
 
 	vdrStartTime := uint64(defaultValidateStartTime.Unix()) + 1
 	vdrEndTime := uint64(defaultValidateStartTime.Add(2 * defaultMinStakingDuration).Unix())
-	vdrNodeID := ids.GenerateTestNodeID()
+	vdrNodeID := ids.GenerateTestShortID()
 	vdrTx, err := vm.newAddValidatorTx(
 		vm.MinValidatorStake, // stakeAmt
 		vdrStartTime,
@@ -388,13 +387,11 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 
 	firstDB := db.NewPrefixDBManager([]byte{})
 	firstVM := &VM{Factory: Factory{
-		Config: config.Config{
-			Chains:                 chains.MockManager{},
-			UptimePercentage:       .2,
-			RewardConfig:           defaultRewardConfig,
-			Validators:             validators.NewManager(),
-			UptimeLockedCalculator: uptime.NewLockedCalculator(),
-		},
+		Chains:                 chains.MockManager{},
+		UptimePercentage:       .2,
+		RewardConfig:           defaultRewardConfig,
+		Validators:             validators.NewManager(),
+		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 	}}
 
 	firstCtx := defaultContext()
@@ -426,12 +423,10 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 
 	secondDB := db.NewPrefixDBManager([]byte{})
 	secondVM := &VM{Factory: Factory{
-		Config: config.Config{
-			Chains:                 chains.MockManager{},
-			UptimePercentage:       .21,
-			Validators:             validators.NewManager(),
-			UptimeLockedCalculator: uptime.NewLockedCalculator(),
-		},
+		Chains:                 chains.MockManager{},
+		UptimePercentage:       .21,
+		Validators:             validators.NewManager(),
+		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 	}}
 
 	secondCtx := defaultContext()
@@ -579,7 +574,7 @@ func TestUptimeDisallowedWithRestart(t *testing.T) {
 	}
 
 	currentStakers := secondVM.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(ids.NodeID(keys[1].PublicKey().Address()))
+	_, err = currentStakers.GetValidator(keys[1].PublicKey().Address())
 	if err == nil {
 		t.Fatal("should have removed a genesis validator")
 	}
@@ -590,20 +585,18 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 	db := manager.NewMemDB(version.DefaultVersion1_0_0)
 
 	vm := &VM{Factory: Factory{
-		Config: config.Config{
-			Chains:                 chains.MockManager{},
-			UptimePercentage:       .2,
-			RewardConfig:           defaultRewardConfig,
-			Validators:             validators.NewManager(),
-			UptimeLockedCalculator: uptime.NewLockedCalculator(),
-		},
+		Chains:                 chains.MockManager{},
+		UptimePercentage:       .2,
+		RewardConfig:           defaultRewardConfig,
+		Validators:             validators.NewManager(),
+		UptimeLockedCalculator: uptime.NewLockedCalculator(),
 	}}
 
 	ctx := defaultContext()
 	ctx.Lock.Lock()
 
 	msgChan := make(chan common.Message, 1)
-	appSender := &common.SenderTest{T: t}
+	appSender := &common.SenderTest{}
 	if err := vm.Initialize(ctx, db, genesisBytes, nil, nil, msgChan, nil, appSender); err != nil {
 		t.Fatal(err)
 	}
@@ -713,7 +706,7 @@ func TestUptimeDisallowedAfterNeverConnecting(t *testing.T) {
 	}
 
 	currentStakers := vm.internalState.CurrentStakerChainState()
-	_, err = currentStakers.GetValidator(ids.NodeID(keys[1].PublicKey().Address()))
+	_, err = currentStakers.GetValidator(keys[1].PublicKey().Address())
 	if err == nil {
 		t.Fatal("should have removed a genesis validator")
 	}

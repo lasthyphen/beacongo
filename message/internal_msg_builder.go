@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -13,16 +13,16 @@ var _ InternalMsgBuilder = internalMsgBuilder{}
 type InternalMsgBuilder interface {
 	InternalFailedRequest(
 		op Op,
-		nodeID ids.NodeID,
+		nodeID ids.ShortID,
 		chainID ids.ID,
 		requestID uint32,
 	) InboundMessage
 
-	InternalTimeout(nodeID ids.NodeID) InboundMessage
-	InternalConnected(nodeID ids.NodeID, nodeVersion version.Application) InboundMessage
-	InternalDisconnected(nodeID ids.NodeID) InboundMessage
-	InternalVMMessage(nodeID ids.NodeID, notification uint32) InboundMessage
-	InternalGossipRequest(nodeID ids.NodeID) InboundMessage
+	InternalTimeout(nodeID ids.ShortID) InboundMessage
+	InternalConnected(nodeID ids.ShortID, nodeVersion version.Application) InboundMessage
+	InternalDisconnected(nodeID ids.ShortID) InboundMessage
+	InternalVMMessage(nodeID ids.ShortID, notification uint32) InboundMessage
+	InternalGossipRequest(nodeID ids.ShortID) InboundMessage
 }
 
 type internalMsgBuilder struct{}
@@ -33,7 +33,7 @@ func NewInternalBuilder() InternalMsgBuilder {
 
 func (internalMsgBuilder) InternalFailedRequest(
 	op Op,
-	nodeID ids.NodeID,
+	nodeID ids.ShortID,
 	chainID ids.ID,
 	requestID uint32,
 ) InboundMessage {
@@ -47,14 +47,14 @@ func (internalMsgBuilder) InternalFailedRequest(
 	}
 }
 
-func (internalMsgBuilder) InternalTimeout(nodeID ids.NodeID) InboundMessage {
+func (internalMsgBuilder) InternalTimeout(nodeID ids.ShortID) InboundMessage {
 	return &inboundMessage{
 		op:     Timeout,
 		nodeID: nodeID,
 	}
 }
 
-func (internalMsgBuilder) InternalConnected(nodeID ids.NodeID, nodeVersion version.Application) InboundMessage {
+func (internalMsgBuilder) InternalConnected(nodeID ids.ShortID, nodeVersion version.Application) InboundMessage {
 	return &inboundMessage{
 		op: Connected,
 		fields: map[Field]interface{}{
@@ -64,7 +64,7 @@ func (internalMsgBuilder) InternalConnected(nodeID ids.NodeID, nodeVersion versi
 	}
 }
 
-func (internalMsgBuilder) InternalDisconnected(nodeID ids.NodeID) InboundMessage {
+func (internalMsgBuilder) InternalDisconnected(nodeID ids.ShortID) InboundMessage {
 	return &inboundMessage{
 		op:     Disconnected,
 		nodeID: nodeID,
@@ -72,7 +72,7 @@ func (internalMsgBuilder) InternalDisconnected(nodeID ids.NodeID) InboundMessage
 }
 
 func (internalMsgBuilder) InternalVMMessage(
-	nodeID ids.NodeID,
+	nodeID ids.ShortID,
 	notification uint32,
 ) InboundMessage {
 	return &inboundMessage{
@@ -85,7 +85,7 @@ func (internalMsgBuilder) InternalVMMessage(
 }
 
 func (internalMsgBuilder) InternalGossipRequest(
-	nodeID ids.NodeID,
+	nodeID ids.ShortID,
 ) InboundMessage {
 	return &inboundMessage{
 		op:     GossipRequest,

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package block
@@ -67,7 +67,7 @@ func TestBuildUnsigned(t *testing.T) {
 	assert.Equal(pChainHeight, builtBlock.PChainHeight())
 	assert.Equal(timestamp, builtBlock.Timestamp())
 	assert.Equal(innerBlockBytes, builtBlock.Block())
-	assert.Equal(ids.EmptyNodeID, builtBlock.Proposer())
+	assert.Equal(ids.ShortEmpty, builtBlock.Proposer())
 
 	err = builtBlock.Verify(false, ids.Empty)
 	assert.NoError(err)

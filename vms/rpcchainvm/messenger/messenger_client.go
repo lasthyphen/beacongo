@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package messenger
@@ -6,23 +6,22 @@ package messenger
 import (
 	"context"
 
+	"github.com/lasthyphen/beacongo/api/proto/messengerproto"
 	"github.com/lasthyphen/beacongo/snow/engine/common"
-
-	messengerpb "github.com/lasthyphen/beacongo/proto/pb/messenger"
 )
 
 // Client is an implementation of a messenger channel that talks over RPC.
 type Client struct {
-	client messengerpb.MessengerClient
+	client messengerproto.MessengerClient
 }
 
 // NewClient returns a client that is connected to a remote channel
-func NewClient(client messengerpb.MessengerClient) *Client {
+func NewClient(client messengerproto.MessengerClient) *Client {
 	return &Client{client: client}
 }
 
 func (c *Client) Notify(msg common.Message) error {
-	_, err := c.client.Notify(context.Background(), &messengerpb.NotifyRequest{
+	_, err := c.client.Notify(context.Background(), &messengerproto.NotifyRequest{
 		Message: uint32(msg),
 	})
 	return err

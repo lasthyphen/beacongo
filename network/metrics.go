@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package network
@@ -6,16 +6,12 @@ package network
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/network/peer"
-	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
 )
 
 type metrics struct {
-	numTracked                prometheus.Gauge
 	numPeers                  prometheus.Gauge
-	numSubnetPeers            *prometheus.GaugeVec
+	numTracked                prometheus.Gauge
 	timeSinceLastMsgSent      prometheus.Gauge
 	timeSinceLastMsgReceived  prometheus.Gauge
 	sendQueuePortionFull      prometheus.Gauge
@@ -28,7 +24,7 @@ type metrics struct {
 	nodeUptimeRewardingStake  prometheus.Gauge
 }
 
-func newMetrics(namespace string, registerer prometheus.Registerer, initialSubnetIDs ids.Set) (*metrics, error) {
+func newMetrics(namespace string, registerer prometheus.Registerer) (*metrics, error) {
 	m := &metrics{
 		numPeers: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -40,14 +36,6 @@ func newMetrics(namespace string, registerer prometheus.Registerer, initialSubne
 			Name:      "tracked",
 			Help:      "Number of currently tracked IPs attempting to be connected to",
 		}),
-		numSubnetPeers: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "peers_subnet",
-				Help:      "Number of peers that are validating a particular subnet",
-			},
-			[]string{"subnetID"},
-		),
 		timeSinceLastMsgReceived: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "time_since_last_msg_received",
@@ -102,9 +90,8 @@ func newMetrics(namespace string, registerer prometheus.Registerer, initialSubne
 
 	errs := wrappers.Errs{}
 	errs.Add(
-		registerer.Register(m.numTracked),
 		registerer.Register(m.numPeers),
-		registerer.Register(m.numSubnetPeers),
+		registerer.Register(m.numTracked),
 		registerer.Register(m.timeSinceLastMsgReceived),
 		registerer.Register(m.timeSinceLastMsgSent),
 		registerer.Register(m.sendQueuePortionFull),
@@ -116,43 +103,5 @@ func newMetrics(namespace string, registerer prometheus.Registerer, initialSubne
 		registerer.Register(m.nodeUptimeWeightedAverage),
 		registerer.Register(m.nodeUptimeRewardingStake),
 	)
-
-	// init subnet tracker metrics with whitelisted subnets
-	for subnetID := range initialSubnetIDs {
-		// no need to track primary network ID
-		if subnetID == constants.PrimaryNetworkID {
-			continue
-		}
-		// initialize to 0
-		m.numSubnetPeers.WithLabelValues(subnetID.String()).Set(0)
-	}
 	return m, errs.Err
-}
-
-func (m *metrics) markConnected(peer peer.Peer) {
-	m.numPeers.Inc()
-	m.connected.Inc()
-
-	trackedSubnets := peer.TrackedSubnets()
-	for subnetID := range trackedSubnets {
-		// no need to track primary network ID
-		if subnetID == constants.PrimaryNetworkID {
-			continue
-		}
-		m.numSubnetPeers.WithLabelValues(subnetID.String()).Inc()
-	}
-}
-
-func (m *metrics) markDisconnected(peer peer.Peer) {
-	m.numPeers.Dec()
-	m.disconnected.Inc()
-
-	trackedSubnets := peer.TrackedSubnets()
-	for subnetID := range trackedSubnets {
-		// no need to track primary network ID
-		if subnetID == constants.PrimaryNetworkID {
-			continue
-		}
-		m.numSubnetPeers.WithLabelValues(subnetID.String()).Dec()
-	}
 }

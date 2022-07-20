@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/lasthyphen/beacongo/utils"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 )
 
 type Genesis struct {
@@ -26,6 +25,6 @@ func (g *Genesis) Sort() { sort.Sort(g) }
 func (g *Genesis) IsSortedAndUnique() bool { return utils.IsSortedAndUnique(g) }
 
 type GenesisAsset struct {
-	Alias             string `serialize:"true"`
-	txs.CreateAssetTx `serialize:"true"`
+	Alias         string `serialize:"true"`
+	CreateAssetTx `serialize:"true"`
 }

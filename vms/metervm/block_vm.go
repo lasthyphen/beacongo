@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package metervm
@@ -16,33 +16,18 @@ import (
 	"github.com/lasthyphen/beacongo/utils/timer/mockable"
 )
 
-var (
-	_ block.ChainVM              = &blockVM{}
-	_ block.BatchedChainVM       = &blockVM{}
-	_ block.HeightIndexedChainVM = &blockVM{}
-	_ block.StateSyncableVM      = &blockVM{}
-)
+var _ block.ChainVM = &blockVM{}
+
+func NewBlockVM(vm block.ChainVM) block.ChainVM {
+	return &blockVM{
+		ChainVM: vm,
+	}
+}
 
 type blockVM struct {
 	block.ChainVM
-	bVM  block.BatchedChainVM
-	hVM  block.HeightIndexedChainVM
-	ssVM block.StateSyncableVM
-
 	blockMetrics
 	clock mockable.Clock
-}
-
-func NewBlockVM(vm block.ChainVM) block.ChainVM {
-	bVM, _ := vm.(block.BatchedChainVM)
-	hVM, _ := vm.(block.HeightIndexedChainVM)
-	ssVM, _ := vm.(block.StateSyncableVM)
-	return &blockVM{
-		ChainVM: vm,
-		bVM:     bVM,
-		hVM:     hVM,
-		ssVM:    ssVM,
-	}
 }
 
 func (vm *blockVM) Initialize(
@@ -56,14 +41,8 @@ func (vm *blockVM) Initialize(
 	appSender common.AppSender,
 ) error {
 	registerer := prometheus.NewRegistry()
-	err := vm.blockMetrics.Initialize(
-		vm.bVM != nil,
-		vm.hVM != nil,
-		vm.ssVM != nil,
-		"",
-		registerer,
-	)
-	if err != nil {
+	_, supportsBatchedFetching := vm.ChainVM.(block.BatchedChainVM)
+	if err := vm.blockMetrics.Initialize(supportsBatchedFetching, "", registerer); err != nil {
 		return err
 	}
 

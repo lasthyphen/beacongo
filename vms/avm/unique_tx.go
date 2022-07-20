@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -11,7 +11,6 @@ import (
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow/choices"
 	"github.com/lasthyphen/beacongo/snow/consensus/snowstorm"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 )
 
@@ -38,7 +37,7 @@ type UniqueTx struct {
 }
 
 type TxCachedState struct {
-	*txs.Tx
+	*Tx
 
 	unique, verifiedTx, verifiedState bool
 	validity                          error
@@ -60,7 +59,7 @@ func (tx *UniqueTx) refresh() {
 	if tx.unique {
 		return
 	}
-	unique := tx.vm.DeduplicateTx(tx)
+	unique := tx.vm.state.DeduplicateTx(tx)
 	prevTx := tx.Tx
 	if unique == tx {
 		tx.vm.numTxRefreshMisses.Inc()
@@ -175,20 +174,15 @@ func (tx *UniqueTx) Accept() error {
 		return fmt.Errorf("couldn't create commitBatch while processing tx %s: %w", txID, err)
 	}
 
-	err = tx.Tx.Visit(&executeTx{
-		tx:           tx.Tx,
-		batch:        commitBatch,
-		sharedMemory: tx.vm.ctx.SharedMemory,
-		parser:       tx.vm.parser,
-	})
-	if err != nil {
-		return fmt.Errorf("ExecuteWithSideEffects erred while processing tx %s: %w", txID, err)
+	if err := tx.ExecuteWithSideEffects(tx.vm, commitBatch); err != nil {
+		return fmt.Errorf("ExecuteWithSideEffects errored while processing tx %s: %w", txID, err)
 	}
 
 	tx.vm.pubsub.Publish(NewPubSubFilterer(tx.Tx))
 	tx.vm.walletService.decided(txID)
 
 	tx.deps = nil // Needed to prevent a memory leak
+
 	return nil
 }
 
@@ -347,7 +341,7 @@ func (tx *UniqueTx) SyntacticVerify() error {
 	tx.verifiedTx = true
 	tx.validity = tx.Tx.SyntacticVerify(
 		tx.vm.ctx,
-		tx.vm.parser.Codec(),
+		tx.vm.codec,
 		tx.vm.feeAssetID,
 		tx.vm.TxFee,
 		tx.vm.CreateAssetTxFee,
@@ -366,8 +360,5 @@ func (tx *UniqueTx) SemanticVerify() error {
 		return tx.validity
 	}
 
-	return tx.Visit(&txSemanticVerify{
-		tx: tx.Tx,
-		vm: tx.vm,
-	})
+	return tx.Tx.SemanticVerify(tx.vm, tx.UnsignedTx)
 }

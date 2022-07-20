@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -42,26 +42,19 @@ const (
 	AppRequest
 	AppResponse
 	AppGossip
-	// State sync
-	GetStateSummaryFrontier
-	StateSummaryFrontier
-	GetAcceptedStateSummary
-	AcceptedStateSummary
 
 	// Internal messages (External messages should be added above these):
 	GetAcceptedFrontierFailed
 	GetAcceptedFailed
-	GetAncestorsFailed
 	GetFailed
 	QueryFailed
+	GetAncestorsFailed
 	AppRequestFailed
 	Timeout
 	Connected
 	Disconnected
 	Notify
 	GossipRequest
-	GetStateSummaryFrontierFailed
-	GetAcceptedStateSummaryFailed
 )
 
 var (
@@ -81,8 +74,6 @@ var (
 		PushQuery,
 		PullQuery,
 		AppRequest,
-		GetStateSummaryFrontier,
-		GetAcceptedStateSummary,
 	}
 	ConsensusResponseOps = []Op{
 		AcceptedFrontier,
@@ -91,8 +82,6 @@ var (
 		Put,
 		Chits,
 		AppResponse,
-		StateSummaryFrontier,
-		AcceptedStateSummary,
 	}
 	// AppGossip is the only message that is sent unrequested without the
 	// expectation of a response
@@ -106,17 +95,15 @@ var (
 	ConsensusInternalOps = []Op{
 		GetAcceptedFrontierFailed,
 		GetAcceptedFailed,
-		GetAncestorsFailed,
 		GetFailed,
 		QueryFailed,
+		GetAncestorsFailed,
 		AppRequestFailed,
 		Timeout,
 		Connected,
 		Disconnected,
 		Notify,
 		GossipRequest,
-		GetStateSummaryFrontierFailed,
-		GetAcceptedStateSummaryFailed,
 	}
 	ConsensusOps = append(ConsensusExternalOps, ConsensusInternalOps...)
 
@@ -136,19 +123,11 @@ var (
 		Chits,
 		GetAcceptedFrontierFailed,
 		GetAcceptedFailed,
-		GetAncestorsFailed,
 		GetFailed,
 		QueryFailed,
+		GetAncestorsFailed,
 		Connected,
 		Disconnected,
-
-		// State sync
-		GetStateSummaryFrontier,
-		StateSummaryFrontier,
-		GetAcceptedStateSummary,
-		AcceptedStateSummary,
-		GetStateSummaryFrontierFailed,
-		GetAcceptedStateSummaryFailed,
 	}
 
 	AsynchronousOps = []Op{
@@ -159,47 +138,39 @@ var (
 	}
 
 	RequestToResponseOps = map[Op]Op{
-		GetAcceptedFrontier:     AcceptedFrontier,
-		GetAccepted:             Accepted,
-		GetAncestors:            Ancestors,
-		Get:                     Put,
-		PushQuery:               Chits,
-		PullQuery:               Chits,
-		AppRequest:              AppResponse,
-		GetStateSummaryFrontier: StateSummaryFrontier,
-		GetAcceptedStateSummary: AcceptedStateSummary,
+		GetAcceptedFrontier: AcceptedFrontier,
+		GetAccepted:         Accepted,
+		GetAncestors:        Ancestors,
+		Get:                 Put,
+		PushQuery:           Chits,
+		PullQuery:           Chits,
+		AppRequest:          AppResponse,
 	}
 	ResponseToFailedOps = map[Op]Op{
-		AcceptedFrontier:     GetAcceptedFrontierFailed,
-		Accepted:             GetAcceptedFailed,
-		Ancestors:            GetAncestorsFailed,
-		Put:                  GetFailed,
-		Chits:                QueryFailed,
-		AppResponse:          AppRequestFailed,
-		StateSummaryFrontier: GetStateSummaryFrontierFailed,
-		AcceptedStateSummary: GetAcceptedStateSummaryFailed,
+		AcceptedFrontier: GetAcceptedFrontierFailed,
+		Accepted:         GetAcceptedFailed,
+		Ancestors:        GetAncestorsFailed,
+		Put:              GetFailed,
+		Chits:            QueryFailed,
+		AppResponse:      AppRequestFailed,
 	}
 	FailedToResponseOps = map[Op]Op{
-		GetAcceptedFrontierFailed:     AcceptedFrontier,
-		GetAcceptedFailed:             Accepted,
-		GetAncestorsFailed:            Ancestors,
-		GetFailed:                     Put,
-		QueryFailed:                   Chits,
-		AppRequestFailed:              AppResponse,
-		GetStateSummaryFrontierFailed: StateSummaryFrontier,
-		GetAcceptedStateSummaryFailed: AcceptedStateSummary,
+		GetAcceptedFrontierFailed: AcceptedFrontier,
+		GetAcceptedFailed:         Accepted,
+		GetAncestorsFailed:        Ancestors,
+		GetFailed:                 Put,
+		QueryFailed:               Chits,
+		AppRequestFailed:          AppResponse,
 	}
 	UnrequestedOps = map[Op]struct{}{
-		GetAcceptedFrontier:     {},
-		GetAccepted:             {},
-		GetAncestors:            {},
-		Get:                     {},
-		PushQuery:               {},
-		PullQuery:               {},
-		AppRequest:              {},
-		AppGossip:               {},
-		GetStateSummaryFrontier: {},
-		GetAcceptedStateSummary: {},
+		GetAcceptedFrontier: {},
+		GetAccepted:         {},
+		GetAncestors:        {},
+		Get:                 {},
+		PushQuery:           {},
+		PullQuery:           {},
+		AppRequest:          {},
+		AppGossip:           {},
 	}
 
 	// Defines the messages that can be sent/received with this network
@@ -207,7 +178,7 @@ var (
 		// Handshake:
 		// TODO: remove NodeID from the Version message
 		Version:  {NetworkID, NodeID, MyTime, IP, VersionStr, VersionTime, SigBytes, TrackedSubnets},
-		PeerList: {Peers},
+		PeerList: {SignedPeers},
 		Ping:     {},
 		Pong:     {Uptime},
 		// Bootstrapping:
@@ -227,19 +198,12 @@ var (
 		AppRequest:  {ChainID, RequestID, Deadline, AppBytes},
 		AppResponse: {ChainID, RequestID, AppBytes},
 		AppGossip:   {ChainID, AppBytes},
-		// State Sync
-		GetStateSummaryFrontier: {ChainID, RequestID, Deadline},
-		StateSummaryFrontier:    {ChainID, RequestID, SummaryBytes},
-		GetAcceptedStateSummary: {ChainID, RequestID, Deadline, SummaryHeights},
-		AcceptedStateSummary:    {ChainID, RequestID, SummaryIDs},
 	}
 )
 
 func (op Op) Compressible() bool {
 	switch op {
-	case PeerList, Put, Ancestors, PushQuery,
-		AppRequest, AppResponse, AppGossip,
-		StateSummaryFrontier, GetAcceptedStateSummary, AcceptedStateSummary:
+	case PeerList, Put, Ancestors, PushQuery, AppRequest, AppResponse, AppGossip:
 		return true
 	default:
 		return false
@@ -284,31 +248,19 @@ func (op Op) String() string {
 		return "app_response"
 	case AppGossip:
 		return "app_gossip"
-	case GetStateSummaryFrontier:
-		return "get_state_summary_frontier"
-	case StateSummaryFrontier:
-		return "state_summary_frontier"
-	case GetAcceptedStateSummary:
-		return "get_accepted_state_summary"
-	case AcceptedStateSummary:
-		return "accepted_state_summary"
 
 	case GetAcceptedFrontierFailed:
 		return "get_accepted_frontier_failed"
 	case GetAcceptedFailed:
 		return "get_accepted_failed"
-	case GetAncestorsFailed:
-		return "get_ancestors_failed"
 	case GetFailed:
 		return "get_failed"
 	case QueryFailed:
 		return "query_failed"
+	case GetAncestorsFailed:
+		return "get_ancestors_failed"
 	case AppRequestFailed:
 		return "app_request_failed"
-	case GetStateSummaryFrontierFailed:
-		return "get_state_summary_frontier_failed"
-	case GetAcceptedStateSummaryFailed:
-		return "get_accepted_state_summary_failed"
 	case Timeout:
 		return "timeout"
 	case Connected:

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
@@ -17,6 +17,7 @@ const (
 	NodeID                           // TODO: remove NodeID. Used in handshake
 	MyTime                           // Used in handshake
 	IP                               // Used in handshake
+	Peers                            // Used in handshake
 	ChainID                          // Used for dispatching
 	RequestID                        // Used for all messages
 	Deadline                         // Used for request messages
@@ -26,14 +27,11 @@ const (
 	MultiContainerBytes              // Used in Ancestors
 	SigBytes                         // Used in handshake / peer gossiping
 	VersionTime                      // Used in handshake / peer gossiping
-	Peers                            // Used in peer gossiping
+	SignedPeers                      // Used in peer gossiping
 	TrackedSubnets                   // Used in handshake / peer gossiping
 	AppBytes                         // Used at application level
 	VMMessage                        // Used internally
 	Uptime                           // Used for Pong
-	SummaryBytes                     // Used for state sync
-	SummaryHeights                   // Used for state sync
-	SummaryIDs                       // Used for state sync
 	VersionStruct                    // Used internally
 )
 
@@ -50,6 +48,8 @@ func (f Field) Packer() func(*wrappers.Packer, interface{}) {
 		return wrappers.TryPackLong
 	case IP:
 		return wrappers.TryPackIP
+	case Peers:
+		return wrappers.TryPackIPList
 	case ChainID: // TODO: This will be shortened to use a modified varint spec
 		return wrappers.TryPackHash
 	case RequestID:
@@ -70,18 +70,12 @@ func (f Field) Packer() func(*wrappers.Packer, interface{}) {
 		return wrappers.TryPackBytes
 	case VersionTime:
 		return wrappers.TryPackLong
-	case Peers:
-		return wrappers.TryPackClaimedIPPortList
+	case SignedPeers:
+		return wrappers.TryPackIPCertList
 	case TrackedSubnets:
 		return wrappers.TryPackHashes
 	case Uptime:
 		return wrappers.TryPackByte
-	case SummaryBytes:
-		return wrappers.TryPackBytes
-	case SummaryHeights:
-		return wrappers.TryPackUint64Slice
-	case SummaryIDs:
-		return wrappers.TryPackHashes
 	default:
 		return nil
 	}
@@ -100,6 +94,8 @@ func (f Field) Unpacker() func(*wrappers.Packer) interface{} {
 		return wrappers.TryUnpackLong
 	case IP:
 		return wrappers.TryUnpackIP
+	case Peers:
+		return wrappers.TryUnpackIPList
 	case ChainID: // TODO: This will be shortened to use a modified varint spec
 		return wrappers.TryUnpackHash
 	case RequestID:
@@ -120,18 +116,12 @@ func (f Field) Unpacker() func(*wrappers.Packer) interface{} {
 		return wrappers.TryUnpackBytes
 	case VersionTime:
 		return wrappers.TryUnpackLong
-	case Peers:
-		return wrappers.TryUnpackClaimedIPPortList
+	case SignedPeers:
+		return wrappers.TryUnpackIPCertList
 	case TrackedSubnets:
 		return wrappers.TryUnpackHashes
 	case Uptime:
 		return wrappers.TryUnpackByte
-	case SummaryBytes:
-		return wrappers.TryUnpackBytes
-	case SummaryHeights:
-		return wrappers.TryUnpackUint64Slice
-	case SummaryIDs:
-		return wrappers.TryUnpackHashes
 	default:
 		return nil
 	}
@@ -149,6 +139,8 @@ func (f Field) String() string {
 		return "MyTime"
 	case IP:
 		return "IP"
+	case Peers:
+		return "Peers"
 	case ChainID:
 		return "ChainID"
 	case RequestID:
@@ -169,20 +161,14 @@ func (f Field) String() string {
 		return "SigBytes"
 	case VersionTime:
 		return "VersionTime"
-	case Peers:
-		return "Peers"
+	case SignedPeers:
+		return "SignedPeers"
 	case TrackedSubnets:
 		return "TrackedSubnets"
 	case VMMessage:
 		return "VMMessage"
 	case Uptime:
 		return "Uptime"
-	case SummaryBytes:
-		return "Summary"
-	case SummaryHeights:
-		return "SummaryHeights"
-	case SummaryIDs:
-		return "SummaryIDs"
 	case VersionStruct:
 		return "VersionStruct"
 	default:

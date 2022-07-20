@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package registry
@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io/fs"
 	"testing"
-	"time"
 
 	"gotest.tools/assert"
 
@@ -15,7 +14,6 @@ import (
 
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/filesystem"
-	"github.com/lasthyphen/beacongo/utils/resource"
 	"github.com/lasthyphen/beacongo/vms"
 )
 
@@ -45,16 +43,16 @@ var (
 	}
 
 	// read dir results
-	oneValidVM = []fs.DirEntry{
+	oneValidVM = []fs.FileInfo{
 		directory,
 		registeredVM,
 	}
-	twoValidVMs = []fs.DirEntry{
+	twoValidVMs = []fs.FileInfo{
 		directory,
 		registeredVM,
 		unregisteredVM,
 	}
-	invalidVMs = []fs.DirEntry{
+	invalidVMs = []fs.FileInfo{
 		directory,
 		invalidVM,
 	}
@@ -147,7 +145,6 @@ func initVMGetterTest(t *testing.T) *vmGetterTestResources {
 			FileReader:      mockReader,
 			Manager:         mockManager,
 			PluginDirectory: pluginDir,
-			CPUTracker:      resource.NewManager("", time.Hour, time.Hour, time.Hour),
 		},
 	)
 

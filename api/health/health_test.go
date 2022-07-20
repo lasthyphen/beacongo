@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package health
@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/lasthyphen/beacongo/utils"
-	"github.com/lasthyphen/beacongo/utils/logging"
 )
 
 const (
@@ -60,7 +59,7 @@ func TestDuplicatedRegistations(t *testing.T) {
 		return "", nil
 	})
 
-	h, err := New(logging.NoLog{}, prometheus.NewRegistry())
+	h, err := New(prometheus.NewRegistry())
 	assert.NoError(err)
 
 	err = h.RegisterReadinessCheck("check", check)
@@ -86,7 +85,7 @@ func TestDefaultFailing(t *testing.T) {
 		return "", nil
 	})
 
-	h, err := New(logging.NoLog{}, prometheus.NewRegistry())
+	h, err := New(prometheus.NewRegistry())
 	assert.NoError(err)
 
 	{
@@ -130,7 +129,7 @@ func TestPassingChecks(t *testing.T) {
 		return "", nil
 	})
 
-	h, err := New(logging.NoLog{}, prometheus.NewRegistry())
+	h, err := New(prometheus.NewRegistry())
 	assert.NoError(err)
 
 	err = h.RegisterReadinessCheck("check", check)
@@ -200,7 +199,7 @@ func TestPassingThenFailingChecks(t *testing.T) {
 		return "", nil
 	})
 
-	h, err := New(logging.NoLog{}, prometheus.NewRegistry())
+	h, err := New(prometheus.NewRegistry())
 	assert.NoError(err)
 
 	err = h.RegisterReadinessCheck("check", check)
@@ -250,7 +249,7 @@ func TestPassingThenFailingChecks(t *testing.T) {
 func TestDeadlockRegression(t *testing.T) {
 	assert := assert.New(t)
 
-	h, err := New(logging.NoLog{}, prometheus.NewRegistry())
+	h, err := New(prometheus.NewRegistry())
 	assert.NoError(err)
 
 	var lock sync.Mutex

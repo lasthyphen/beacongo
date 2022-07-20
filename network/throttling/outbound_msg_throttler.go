@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package throttling
@@ -25,12 +25,12 @@ type OutboundMsgThrottler interface {
 	// If this method returns true, Release([msg], [nodeID]) must be called (!) when
 	// the message is sent (or when we give up trying to send the message, if applicable.)
 	// If this method returns false, do not make a corresponding call to Release.
-	Acquire(msg message.OutboundMessage, nodeID ids.NodeID) bool
+	Acquire(msg message.OutboundMessage, nodeID ids.ShortID) bool
 
 	// Mark that a message [msg] has been sent to [nodeID] or we have given up
 	// sending the message. Must correspond to a previous call to
 	// Acquire([msg], [nodeID]) that returned true.
-	Release(msg message.OutboundMessage, nodeID ids.NodeID)
+	Release(msg message.OutboundMessage, nodeID ids.ShortID)
 }
 
 type outboundMsgThrottler struct {
@@ -53,14 +53,14 @@ func NewSybilOutboundMsgThrottler(
 			remainingVdrBytes:      config.VdrAllocSize,
 			remainingAtLargeBytes:  config.AtLargeAllocSize,
 			nodeMaxAtLargeBytes:    config.NodeMaxAtLargeBytes,
-			nodeToVdrBytesUsed:     make(map[ids.NodeID]uint64),
-			nodeToAtLargeBytesUsed: make(map[ids.NodeID]uint64),
+			nodeToVdrBytesUsed:     make(map[ids.ShortID]uint64),
+			nodeToAtLargeBytesUsed: make(map[ids.ShortID]uint64),
 		},
 	}
 	return t, t.metrics.initialize(namespace, registerer)
 }
 
-func (t *outboundMsgThrottler) Acquire(msg message.OutboundMessage, nodeID ids.NodeID) bool {
+func (t *outboundMsgThrottler) Acquire(msg message.OutboundMessage, nodeID ids.ShortID) bool {
 	// no need to acquire for this message
 	if msg.BypassThrottling() {
 		return true
@@ -123,7 +123,7 @@ func (t *outboundMsgThrottler) Acquire(msg message.OutboundMessage, nodeID ids.N
 	return true
 }
 
-func (t *outboundMsgThrottler) Release(msg message.OutboundMessage, nodeID ids.NodeID) {
+func (t *outboundMsgThrottler) Release(msg message.OutboundMessage, nodeID ids.ShortID) {
 	// no need to release for this message
 	if msg.BypassThrottling() {
 		return
@@ -211,6 +211,6 @@ func NewNoOutboundThrottler() OutboundMsgThrottler {
 // [Acquire] always returns true. [Release] does nothing.
 type noOutboundMsgThrottler struct{}
 
-func (*noOutboundMsgThrottler) Acquire(message.OutboundMessage, ids.NodeID) bool { return true }
+func (*noOutboundMsgThrottler) Acquire(message.OutboundMessage, ids.ShortID) bool { return true }
 
-func (*noOutboundMsgThrottler) Release(message.OutboundMessage, ids.NodeID) {}
+func (*noOutboundMsgThrottler) Release(message.OutboundMessage, ids.ShortID) {}

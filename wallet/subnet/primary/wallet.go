@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package primary
@@ -6,6 +6,8 @@ package primary
 import (
 	"context"
 
+	"github.com/lasthyphen/beacongo/api/info"
+	"github.com/lasthyphen/beacongo/codec"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/vms/avm"
@@ -24,16 +26,8 @@ type Wallet interface {
 	X() x.Wallet
 }
 
-type wallet struct {
-	p p.Wallet
-	x x.Wallet
-}
-
-func (w *wallet) P() p.Wallet { return w.p }
-func (w *wallet) X() x.Wallet { return w.x }
-
-// NewWalletFromURI returns a wallet that supports issuing transactions to the
-// chains living in the primary network to a provided [uri].
+// NewWallet returns a wallet that supports issuing transactions to the chains
+// living in the primary network.
 //
 // On creation, the wallet attaches to the provided [uri] and fetches all UTXOs
 // that reference any of the keys contained in [kc]. If the UTXOs are modified
@@ -41,51 +35,96 @@ func (w *wallet) X() x.Wallet { return w.x }
 // the UTXOs may become out of sync.
 //
 // The wallet manages all UTXOs locally, and performs all tx signing locally.
-func NewWalletFromURI(ctx context.Context, uri string, kc *secp256k1fx.Keychain) (Wallet, error) {
-	pCTX, xCTX, utxos, err := FetchState(ctx, uri, kc.Addrs)
+func NewWallet(ctx context.Context, uri string, kc *secp256k1fx.Keychain) (Wallet, error) {
+	infoClient := info.NewClient(uri)
+	xClient := avm.NewClient(uri, "X")
+
+	pCTX, err := p.NewContextFromClients(ctx, infoClient, xClient)
 	if err != nil {
 		return nil, err
 	}
-	return NewWalletWithState(uri, pCTX, xCTX, utxos, kc), nil
-}
+	pAddrs, err := FormatAddresses("P", pCTX.HRP(), kc.Addrs)
+	if err != nil {
+		return nil, err
+	}
 
-func NewWalletWithState(
-	uri string,
-	pCTX p.Context,
-	xCTX x.Context,
-	utxos UTXOs,
-	kc *secp256k1fx.Keychain,
-) Wallet {
+	xCTX, err := x.NewContextFromClients(ctx, infoClient, xClient)
+	if err != nil {
+		return nil, err
+	}
+	xAddrs, err := FormatAddresses("X", xCTX.HRP(), kc.Addrs)
+	if err != nil {
+		return nil, err
+	}
+
+	pClient := platformvm.NewClient(uri)
+	xChainID := xCTX.BlockchainID()
+	utxos := NewUTXOs()
+
+	chains := []struct {
+		id     ids.ID
+		client UTXOClient
+		codec  codec.Manager
+		addrs  []string
+	}{
+		{
+			id:     constants.PlatformChainID,
+			client: pClient,
+			codec:  platformvm.Codec,
+			addrs:  pAddrs,
+		},
+		{
+			id:     xChainID,
+			client: xClient,
+			codec:  x.Codec,
+			addrs:  xAddrs,
+		},
+	}
+	for _, destinationChain := range chains {
+		for _, sourceChain := range chains {
+			err = AddAllUTXOs(
+				ctx,
+				utxos,
+				destinationChain.client,
+				destinationChain.codec,
+				sourceChain.id,
+				destinationChain.id,
+				destinationChain.addrs,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	pUTXOs := NewChainUTXOs(constants.PlatformChainID, utxos)
 	pTXs := make(map[ids.ID]*platformvm.Tx)
 	pBackend := p.NewBackend(pCTX, pUTXOs, pTXs)
 	pBuilder := p.NewBuilder(kc.Addrs, pBackend)
 	pSigner := p.NewSigner(kc, pBackend)
-	pClient := platformvm.NewClient(uri)
 
-	xChainID := xCTX.BlockchainID()
 	xUTXOs := NewChainUTXOs(xChainID, utxos)
 	xBackend := x.NewBackend(xCTX, xChainID, xUTXOs)
 	xBuilder := x.NewBuilder(kc.Addrs, xBackend)
 	xSigner := x.NewSigner(kc, xBackend)
-	xClient := avm.NewClient(uri, "X")
 
-	return NewWallet(
-		p.NewWallet(pBuilder, pSigner, pClient, pBackend),
-		x.NewWallet(xBuilder, xSigner, xClient, xBackend),
-	)
+	return &wallet{
+		p: p.NewWallet(pBuilder, pSigner, pClient, pBackend),
+		x: x.NewWallet(xBuilder, xSigner, xClient, xBackend),
+	}, nil
 }
 
 func NewWalletWithOptions(w Wallet, options ...common.Option) Wallet {
-	return NewWallet(
-		p.NewWalletWithOptions(w.P(), options...),
-		x.NewWalletWithOptions(w.X(), options...),
-	)
-}
-
-func NewWallet(p p.Wallet, x x.Wallet) Wallet {
 	return &wallet{
-		p: p,
-		x: x,
+		p: p.NewWalletWithOptions(w.P(), options...),
+		x: x.NewWalletWithOptions(w.X(), options...),
 	}
 }
+
+type wallet struct {
+	p p.Wallet
+	x x.Wallet
+}
+
+func (w *wallet) P() p.Wallet { return w.p }
+func (w *wallet) X() x.Wallet { return w.x }

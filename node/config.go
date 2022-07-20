@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package node
@@ -16,9 +16,8 @@ import (
 	"github.com/lasthyphen/beacongo/snow/networking/benchlist"
 	"github.com/lasthyphen/beacongo/snow/networking/router"
 	"github.com/lasthyphen/beacongo/snow/networking/sender"
-	"github.com/lasthyphen/beacongo/snow/networking/tracker"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/dynamicip"
-	"github.com/lasthyphen/beacongo/utils/ips"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/utils/profiler"
 	"github.com/lasthyphen/beacongo/utils/timer"
@@ -70,7 +69,7 @@ type APIConfig struct {
 }
 
 type IPConfig struct {
-	IPPort ips.DynamicIPPort `json:"ip"`
+	IP utils.DynamicIPDesc `json:"ip"`
 	// True if we attempted NAT Traversal
 	AttemptedNATTraversal bool `json:"attemptedNATTraversal"`
 	// Tries to perform network address translation
@@ -88,12 +87,6 @@ type StakingConfig struct {
 	DisabledStakingWeight uint64          `json:"disabledStakingWeight"`
 	StakingKeyPath        string          `json:"stakingKeyPath"`
 	StakingCertPath       string          `json:"stakingCertPath"`
-}
-
-type StateSyncConfig struct {
-	StateSyncIDs             []ids.NodeID `json:"stateSyncIDs"`
-	StateSyncIPs             []ips.IPPort `json:"stateSyncIPs"`
-	StateSyncDisableRequests bool         `json:"stateSyncDisableRequests"`
 }
 
 type BootstrapConfig struct {
@@ -117,8 +110,8 @@ type BootstrapConfig struct {
 	// ancestors while responding to a GetAncestors message
 	BootstrapMaxTimeGetAncestors time.Duration `json:"bootstrapMaxTimeGetAncestors"`
 
-	BootstrapIDs []ids.NodeID `json:"bootstrapIDs"`
-	BootstrapIPs []ips.IPPort `json:"bootstrapIPs"`
+	BootstrapIDs []ids.ShortID  `json:"bootstrapIDs"`
+	BootstrapIPs []utils.IPDesc `json:"bootstrapIPs"`
 }
 
 type DatabaseConfig struct {
@@ -138,7 +131,6 @@ type Config struct {
 	IPConfig            `json:"ipConfig"`
 	StakingConfig       `json:"stakingConfig"`
 	genesis.TxFeeConfig `json:"txFeeConfig"`
-	StateSyncConfig     `json:"stateSyncConfig"`
 	BootstrapConfig     `json:"bootstrapConfig"`
 	DatabaseConfig      `json:"databaseConfig"`
 
@@ -177,9 +169,6 @@ type Config struct {
 	// Plugin directory
 	PluginDir string `json:"pluginDir"`
 
-	// File Descriptor Limit
-	FdLimit uint64 `json:"fdLimit"`
-
 	// Consensus configuration
 	ConsensusParams avalanche.Parameters `json:"consensusParams"`
 
@@ -205,27 +194,6 @@ type Config struct {
 	// VM management
 	VMManager vms.Manager `json:"-"`
 
-	// Halflife to use for the processing requests tracker.
-	// Larger halflife --> usage metrics change more slowly.
-	SystemTrackerProcessingHalflife time.Duration `json:"systemTrackerProcessingHalflife"`
-
-	// Frequency to check the real resource usage of tracked processes.
-	// More frequent checks --> usage metrics are more accurate, but more
-	// expensive to track
-	SystemTrackerFrequency time.Duration `json:"systemTrackerFrequency"`
-
-	// Halflife to use for the cpu tracker.
-	// Larger halflife --> cpu usage metrics change more slowly.
-	SystemTrackerCPUHalflife time.Duration `json:"systemTrackerCPUHalflife"`
-
-	// Halflife to use for the disk tracker.
-	// Larger halflife --> disk usage metrics change more slowly.
-	SystemTrackerDiskHalflife time.Duration `json:"systemTrackerDiskHalflife"`
-
-	CPUTargeterConfig tracker.TargeterConfig `json:"cpuTargeterConfig"`
-
-	DiskTargeterConfig tracker.TargeterConfig `json:"diskTargeterConfig"`
-
-	RequiredAvailableDiskSpace         uint64 `json:"requiredAvailableDiskSpace"`
-	WarningThresholdAvailableDiskSpace uint64 `json:"warningThresholdAvailableDiskSpace"`
+	// Reset proposerVM height index
+	ResetProposerVMHeightIndex bool `json:"resetProposerVMHeightIndex"`
 }

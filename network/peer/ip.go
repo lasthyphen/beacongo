@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package peer
@@ -8,8 +8,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/hashing"
-	"github.com/lasthyphen/beacongo/utils/ips"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
 )
 
@@ -17,7 +17,7 @@ import (
 // ensure that the most updated IP claim is tracked by peers for a given
 // validator.
 type UnsignedIP struct {
-	IP        ips.IPPort
+	IP        utils.IPDesc
 	Timestamp uint64
 }
 
@@ -49,7 +49,7 @@ type SignedIP struct {
 	Signature []byte
 }
 
-func (ip *SignedIP) Verify(cert *x509.Certificate) error {
+func (ip *SignedIP) verify(cert *x509.Certificate) error {
 	return cert.CheckSignature(
 		cert.SignatureAlgorithm,
 		ip.IP.bytes(),

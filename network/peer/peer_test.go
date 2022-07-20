@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package peer
@@ -19,14 +19,11 @@ import (
 	"github.com/lasthyphen/beacongo/message"
 	"github.com/lasthyphen/beacongo/network/throttling"
 	"github.com/lasthyphen/beacongo/snow/networking/router"
-	"github.com/lasthyphen/beacongo/snow/networking/tracker"
 	"github.com/lasthyphen/beacongo/snow/validators"
 	"github.com/lasthyphen/beacongo/staking"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/constants"
-	"github.com/lasthyphen/beacongo/utils/ips"
 	"github.com/lasthyphen/beacongo/utils/logging"
-	"github.com/lasthyphen/beacongo/utils/math/meter"
-	"github.com/lasthyphen/beacongo/utils/resource"
 	"github.com/lasthyphen/beacongo/version"
 )
 
@@ -39,7 +36,7 @@ type rawTestPeer struct {
 	config         *Config
 	conn           net.Conn
 	cert           *x509.Certificate
-	nodeID         ids.NodeID
+	nodeID         ids.ShortID
 	inboundMsgChan <-chan message.InboundMessage
 }
 
@@ -67,13 +64,10 @@ func makeRawTestPeers(t *testing.T) (*rawTestPeer, *rawTestPeer) {
 	tlsCert1, err := staking.NewTLSCert()
 	assert.NoError(err)
 
-	nodeID0 := ids.NodeIDFromCert(tlsCert0.Leaf)
-	nodeID1 := ids.NodeIDFromCert(tlsCert1.Leaf)
+	nodeID0 := CertToID(tlsCert0.Leaf)
+	nodeID1 := CertToID(tlsCert1.Leaf)
 
 	mc := newMessageCreator(t)
-
-	pingMessage, err := mc.Ping()
-	assert.NoError(err)
 
 	metrics, err := NewMetrics(
 		logging.NoLog{},
@@ -82,23 +76,20 @@ func makeRawTestPeers(t *testing.T) (*rawTestPeer, *rawTestPeer) {
 	)
 	assert.NoError(err)
 
-	resourceTracker, err := tracker.NewResourceTracker(prometheus.NewRegistry(), resource.NoUsage, meter.ContinuousFactory{}, 10*time.Second)
-	assert.NoError(err)
 	sharedConfig := Config{
 		Metrics:              metrics,
 		MessageCreator:       mc,
 		Log:                  logging.NoLog{},
 		InboundMsgThrottler:  throttling.NewNoInboundThrottler(),
+		OutboundMsgThrottler: throttling.NewNoOutboundThrottler(),
 		VersionCompatibility: version.GetCompatibility(constants.LocalID),
-		VersionParser:        version.DefaultApplicationParser,
+		VersionParser:        version.NewDefaultApplicationParser(),
 		MySubnets:            ids.Set{},
 		Beacons:              validators.NewSet(),
 		NetworkID:            constants.LocalID,
 		PingFrequency:        constants.DefaultPingFrequency,
 		PongTimeout:          constants.DefaultPingPongTimeout,
 		MaxClockDifference:   time.Minute,
-		ResourceTracker:      resourceTracker,
-		PingMessage:          pingMessage,
 	}
 	peerConfig0 := sharedConfig
 	peerConfig1 := sharedConfig
@@ -107,7 +98,7 @@ func makeRawTestPeers(t *testing.T) (*rawTestPeer, *rawTestPeer) {
 		mc: mc,
 
 		networkID: constants.LocalID,
-		ip: ips.IPPort{
+		ip: utils.IPDesc{
 			IP:   net.IPv6loopback,
 			Port: 0,
 		},
@@ -126,7 +117,7 @@ func makeRawTestPeers(t *testing.T) (*rawTestPeer, *rawTestPeer) {
 		mc: mc,
 
 		networkID: constants.LocalID,
-		ip: ips.IPPort{
+		ip: utils.IPDesc{
 			IP:   net.IPv6loopback,
 			Port: 1,
 		},
@@ -167,12 +158,6 @@ func makeTestPeers(t *testing.T) (*testPeer, *testPeer) {
 			rawPeer0.conn,
 			rawPeer1.cert,
 			rawPeer1.nodeID,
-			NewThrottledMessageQueue(
-				rawPeer0.config.Metrics,
-				rawPeer1.nodeID,
-				logging.NoLog{},
-				throttling.NewNoOutboundThrottler(),
-			),
 		),
 		inboundMsgChan: rawPeer0.inboundMsgChan,
 	}
@@ -182,12 +167,6 @@ func makeTestPeers(t *testing.T) (*testPeer, *testPeer) {
 			rawPeer1.conn,
 			rawPeer0.cert,
 			rawPeer0.nodeID,
-			NewThrottledMessageQueue(
-				rawPeer1.config.Metrics,
-				rawPeer0.nodeID,
-				logging.NoLog{},
-				throttling.NewNoOutboundThrottler(),
-			),
 		),
 		inboundMsgChan: rawPeer1.inboundMsgChan,
 	}
@@ -223,12 +202,6 @@ func TestReady(t *testing.T) {
 		rawPeer0.conn,
 		rawPeer1.cert,
 		rawPeer1.nodeID,
-		NewThrottledMessageQueue(
-			rawPeer0.config.Metrics,
-			rawPeer1.nodeID,
-			logging.NoLog{},
-			throttling.NewNoOutboundThrottler(),
-		),
 	)
 
 	isReady := peer0.Ready()
@@ -239,12 +212,6 @@ func TestReady(t *testing.T) {
 		rawPeer1.conn,
 		rawPeer0.cert,
 		rawPeer0.nodeID,
-		NewThrottledMessageQueue(
-			rawPeer1.config.Metrics,
-			rawPeer0.nodeID,
-			logging.NoLog{},
-			throttling.NewNoOutboundThrottler(),
-		),
 	)
 
 	err := peer0.AwaitReady(context.Background())
@@ -273,7 +240,7 @@ func TestSend(t *testing.T) {
 	outboundGetMsg, err := mc.Get(ids.Empty, 1, time.Second, ids.Empty)
 	assert.NoError(err)
 
-	sent := peer0.Send(context.Background(), outboundGetMsg)
+	sent := peer0.Send(outboundGetMsg)
 	assert.True(sent)
 
 	inboundGetMsg := <-peer1.inboundMsgChan

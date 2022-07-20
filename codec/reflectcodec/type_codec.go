@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package reflectcodec
@@ -63,11 +63,11 @@ type genericCodec struct {
 }
 
 // New returns a new, concurrency-safe codec
-func New(typer TypeCodec, tagNames []string, maxSliceLen uint32) codec.Codec {
+func New(typer TypeCodec, tagName string, maxSliceLen uint32) codec.Codec {
 	return &genericCodec{
 		typer:       typer,
 		maxSliceLen: maxSliceLen,
-		fielder:     NewStructFielder(tagNames, maxSliceLen),
+		fielder:     NewStructFielder(tagName, maxSliceLen),
 	}
 }
 

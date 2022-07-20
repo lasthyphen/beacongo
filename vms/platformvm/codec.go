@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -8,8 +8,8 @@ import (
 
 	"github.com/lasthyphen/beacongo/codec"
 	"github.com/lasthyphen/beacongo/codec/linearcodec"
+	"github.com/lasthyphen/beacongo/codec/reflectcodec"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
-	"github.com/lasthyphen/beacongo/vms/platformvm/stakeable"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 )
 
@@ -27,7 +27,7 @@ var (
 func init() {
 	c := linearcodec.NewDefault()
 	Codec = codec.NewDefaultManager()
-	gc := linearcodec.NewCustomMaxLength(math.MaxInt32)
+	gc := linearcodec.New(reflectcodec.DefaultTagName, math.MaxInt32)
 	GenesisCodec = codec.NewManager(math.MaxInt32)
 
 	errs := wrappers.Errs{}
@@ -63,8 +63,8 @@ func init() {
 			c.RegisterType(&UnsignedAdvanceTimeTx{}),
 			c.RegisterType(&UnsignedRewardValidatorTx{}),
 
-			c.RegisterType(&stakeable.LockIn{}),
-			c.RegisterType(&stakeable.LockOut{}),
+			c.RegisterType(&StakeableLockIn{}),
+			c.RegisterType(&StakeableLockOut{}),
 		)
 	}
 	errs.Add(

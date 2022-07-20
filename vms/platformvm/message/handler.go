@@ -1,27 +1,28 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package message
 
 import (
 	"github.com/lasthyphen/beacongo/ids"
+	"github.com/lasthyphen/beacongo/utils/constants"
 	"github.com/lasthyphen/beacongo/utils/logging"
 )
 
 var _ Handler = NoopHandler{}
 
 type Handler interface {
-	HandleTx(nodeID ids.NodeID, requestID uint32, msg *Tx) error
+	HandleTx(nodeID ids.ShortID, requestID uint32, msg *Tx) error
 }
 
 type NoopHandler struct {
 	Log logging.Logger
 }
 
-func (h NoopHandler) HandleTx(nodeID ids.NodeID, requestID uint32, _ *Tx) error {
+func (h NoopHandler) HandleTx(nodeID ids.ShortID, requestID uint32, _ *Tx) error {
 	h.Log.Debug(
 		"dropping unexpected Tx message from %s with requestID %s",
-		nodeID,
+		nodeID.PrefixedString(constants.NodeIDPrefix),
 		requestID,
 	)
 	return nil

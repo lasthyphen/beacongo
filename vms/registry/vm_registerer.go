@@ -1,11 +1,10 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package registry
 
 import (
 	"fmt"
-	"path"
 	"sync"
 
 	"github.com/lasthyphen/beacongo/api/server"
@@ -58,18 +57,15 @@ func (r *vmRegisterer) RegisterWithReadLock(vmID ids.ID, factory vms.Factory) er
 }
 
 func (r *vmRegisterer) register(pathAdder server.PathAdder, vmID ids.ID, factory vms.Factory) error {
-	if err := r.config.VMManager.RegisterFactory(vmID, factory); err != nil {
-		return err
-	}
-	handlers, err := r.createStaticHandlers(vmID, factory)
+	handlers, err := r.createHandlers(vmID, factory)
 	if err != nil {
 		return err
 	}
 
 	// all static endpoints go to the vm endpoint, defaulting to the vm id
-	defaultEndpoint := path.Join(constants.VMAliasPrefix, vmID.String())
+	defaultEndpoint := constants.VMAliasPrefix + vmID.String()
 
-	if err := r.createStaticEndpoints(pathAdder, handlers, defaultEndpoint); err != nil {
+	if err := r.createEndpoints(pathAdder, handlers, defaultEndpoint); err != nil {
 		return err
 	}
 	urlAliases, err := r.getURLAliases(vmID, defaultEndpoint)
@@ -79,7 +75,11 @@ func (r *vmRegisterer) register(pathAdder server.PathAdder, vmID ids.ID, factory
 	return pathAdder.AddAliases(defaultEndpoint, urlAliases...)
 }
 
-func (r *vmRegisterer) createStaticHandlers(vmID ids.ID, factory vms.Factory) (map[string]*common.HTTPHandler, error) {
+func (r *vmRegisterer) createHandlers(vmID ids.ID, factory vms.Factory) (map[string]*common.HTTPHandler, error) {
+	if err := r.config.VMManager.RegisterFactory(vmID, factory); err != nil {
+		return nil, err
+	}
+
 	vm, err := factory.New(nil)
 	if err != nil {
 		return nil, err
@@ -102,13 +102,13 @@ func (r *vmRegisterer) createStaticHandlers(vmID ids.ID, factory vms.Factory) (m
 	return handlers, nil
 }
 
-func (r *vmRegisterer) createStaticEndpoints(pathAdder server.PathAdder, handlers map[string]*common.HTTPHandler, defaultEndpoint string) error {
+func (r *vmRegisterer) createEndpoints(pathAdder server.PathAdder, handlers map[string]*common.HTTPHandler, defaultEndpoint string) error {
 	// use a single lock for this entire vm
 	lock := new(sync.RWMutex)
 	// register the static endpoints
 	for extension, service := range handlers {
 		r.config.Log.Verbo("adding static API endpoint: %s%s", defaultEndpoint, extension)
-		if err := pathAdder.AddRoute(service, lock, defaultEndpoint, extension); err != nil {
+		if err := pathAdder.AddRoute(service, lock, defaultEndpoint, extension, r.config.Log); err != nil {
 			return fmt.Errorf(
 				"failed to add static API endpoint %s%s: %s",
 				defaultEndpoint,
@@ -128,7 +128,7 @@ func (r vmRegisterer) getURLAliases(vmID ids.ID, defaultEndpoint string) ([]stri
 
 	var urlAliases []string
 	for _, alias := range aliases {
-		urlAlias := path.Join(constants.VMAliasPrefix, alias)
+		urlAlias := constants.VMAliasPrefix + alias
 		if urlAlias != defaultEndpoint {
 			urlAliases = append(urlAliases, urlAlias)
 		}

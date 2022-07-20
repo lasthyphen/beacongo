@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package info
@@ -17,8 +17,8 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/common"
 	"github.com/lasthyphen/beacongo/snow/networking/benchlist"
 	"github.com/lasthyphen/beacongo/snow/validators"
+	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/constants"
-	"github.com/lasthyphen/beacongo/utils/ips"
 	"github.com/lasthyphen/beacongo/utils/json"
 	"github.com/lasthyphen/beacongo/utils/logging"
 	"github.com/lasthyphen/beacongo/version"
@@ -34,7 +34,7 @@ var (
 type Info struct {
 	Parameters
 	log           logging.Logger
-	myIP          ips.DynamicIPPort
+	myIP          *utils.DynamicIPDesc
 	networking    network.Network
 	chainManager  chains.Manager
 	vmManager     vms.Manager
@@ -45,7 +45,7 @@ type Info struct {
 
 type Parameters struct {
 	Version               version.Application
-	NodeID                ids.NodeID
+	NodeID                ids.ShortID
 	NetworkID             uint32
 	TxFee                 uint64
 	CreateAssetTxFee      uint64
@@ -60,7 +60,7 @@ func NewService(
 	log logging.Logger,
 	chainManager chains.Manager,
 	vmManager vms.Manager,
-	myIP ips.DynamicIPPort,
+	myIP *utils.DynamicIPDesc,
 	network network.Network,
 	versionParser version.ApplicationParser,
 	validators validators.Set,
@@ -112,14 +112,14 @@ func (service *Info) GetNodeVersion(_ *http.Request, _ *struct{}, reply *GetNode
 
 // GetNodeIDReply are the results from calling GetNodeID
 type GetNodeIDReply struct {
-	NodeID ids.NodeID `json:"nodeID"`
+	NodeID string `json:"nodeID"`
 }
 
 // GetNodeID returns the node ID of this node
 func (service *Info) GetNodeID(_ *http.Request, _ *struct{}, reply *GetNodeIDReply) error {
 	service.log.Debug("Info: GetNodeID called")
 
-	reply.NodeID = service.NodeID
+	reply.NodeID = service.NodeID.PrefixedString(constants.NodeIDPrefix)
 	return nil
 }
 
@@ -137,7 +137,7 @@ type GetNodeIPReply struct {
 func (service *Info) GetNodeIP(_ *http.Request, _ *struct{}, reply *GetNodeIPReply) error {
 	service.log.Debug("Info: GetNodeIP called")
 
-	reply.IP = service.myIP.IPPort().String()
+	reply.IP = service.myIP.IP().String()
 	return nil
 }
 
@@ -183,7 +183,7 @@ func (service *Info) GetBlockchainID(_ *http.Request, args *GetBlockchainIDArgs,
 
 // PeersArgs are the arguments for calling Peers
 type PeersArgs struct {
-	NodeIDs []ids.NodeID `json:"nodeIDs"`
+	NodeIDs []string `json:"nodeIDs"`
 }
 
 type Peer struct {
@@ -203,13 +203,26 @@ type PeersReply struct {
 // Peers returns the list of current validators
 func (service *Info) Peers(_ *http.Request, args *PeersArgs, reply *PeersReply) error {
 	service.log.Debug("Info: Peers called")
+	nodeIDs := make([]ids.ShortID, 0, len(args.NodeIDs))
+	for _, nodeID := range args.NodeIDs {
+		nID, err := ids.ShortFromPrefixedString(nodeID, constants.NodeIDPrefix)
+		if err != nil {
+			return err
+		}
+		nodeIDs = append(nodeIDs, nID)
+	}
 
-	peers := service.networking.PeerInfo(args.NodeIDs)
+	peers := service.networking.PeerInfo(nodeIDs)
 	peerInfo := make([]Peer, len(peers))
 	for i, peer := range peers {
+		nodeID, err := ids.ShortFromPrefixedString(peer.ID, constants.NodeIDPrefix)
+		if err != nil {
+			return err
+		}
+
 		peerInfo[i] = Peer{
 			Info:    peer,
-			Benched: service.benchlist.GetBenched(peer.ID),
+			Benched: service.benchlist.GetBenched(nodeID),
 		}
 	}
 
@@ -304,7 +317,7 @@ func (service *Info) GetVMs(_ *http.Request, _ *struct{}, reply *GetVMsReply) er
 	service.log.Debug("Info: GetVMs called")
 
 	// Fetch the VMs registered on this node.
-	vmIDs, err := service.VMManager.ListFactories()
+	vmIDs, err := service.VMManager.ListVMs()
 	if err != nil {
 		return err
 	}

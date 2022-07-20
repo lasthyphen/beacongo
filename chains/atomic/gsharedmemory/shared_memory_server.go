@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gsharedmemory
@@ -7,18 +7,17 @@ import (
 	"context"
 	"sync"
 
+	"github.com/lasthyphen/beacongo/api/proto/gsharedmemoryproto"
 	"github.com/lasthyphen/beacongo/chains/atomic"
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/ids"
-
-	sharedmemorypb "github.com/lasthyphen/beacongo/proto/pb/sharedmemory"
 )
 
-var _ sharedmemorypb.SharedMemoryServer = &Server{}
+var _ gsharedmemoryproto.SharedMemoryServer = &Server{}
 
 // Server is shared memory that is managed over RPC.
 type Server struct {
-	sharedmemorypb.UnsafeSharedMemoryServer
+	gsharedmemoryproto.UnimplementedSharedMemoryServer
 	sm atomic.SharedMemory
 	db database.Database
 
@@ -53,8 +52,8 @@ type getRequest struct {
 
 func (s *Server) Get(
 	_ context.Context,
-	req *sharedmemorypb.GetRequest,
-) (*sharedmemorypb.GetResponse, error) {
+	req *gsharedmemoryproto.GetRequest,
+) (*gsharedmemoryproto.GetResponse, error) {
 	s.getsLock.Lock()
 	defer s.getsLock.Unlock()
 
@@ -75,7 +74,7 @@ func (s *Server) Get(
 
 	if req.Continues {
 		s.gets[req.Id] = get
-		return &sharedmemorypb.GetResponse{}, nil
+		return &gsharedmemoryproto.GetResponse{}, nil
 	}
 
 	if !get.executed {
@@ -90,7 +89,7 @@ func (s *Server) Get(
 	}
 
 	currentSize := 0
-	resp := &sharedmemorypb.GetResponse{}
+	resp := &gsharedmemoryproto.GetResponse{}
 	for i, value := range get.remainingValues {
 		sizeChange := baseElementSize + len(value)
 		if newSize := currentSize + sizeChange; newSize > maxBatchSize && i > 0 {
@@ -127,8 +126,8 @@ type indexedRequest struct {
 
 func (s *Server) Indexed(
 	_ context.Context,
-	req *sharedmemorypb.IndexedRequest,
-) (*sharedmemorypb.IndexedResponse, error) {
+	req *gsharedmemoryproto.IndexedRequest,
+) (*gsharedmemoryproto.IndexedResponse, error) {
 	s.indexedLock.Lock()
 	defer s.indexedLock.Unlock()
 
@@ -152,7 +151,7 @@ func (s *Server) Indexed(
 
 	if req.Continues {
 		s.indexed[req.Id] = indexed
-		return &sharedmemorypb.IndexedResponse{}, nil
+		return &gsharedmemoryproto.IndexedResponse{}, nil
 	}
 
 	if !indexed.executed {
@@ -175,7 +174,7 @@ func (s *Server) Indexed(
 	}
 
 	currentSize := 0
-	resp := &sharedmemorypb.IndexedResponse{
+	resp := &gsharedmemoryproto.IndexedResponse{
 		LastTrait: indexed.lastTrait,
 		LastKey:   indexed.lastKey,
 	}
@@ -209,8 +208,8 @@ type applyRequest struct {
 
 func (s *Server) Apply(
 	_ context.Context,
-	req *sharedmemorypb.ApplyRequest,
-) (*sharedmemorypb.ApplyResponse, error) {
+	req *gsharedmemoryproto.ApplyRequest,
+) (*gsharedmemoryproto.ApplyResponse, error) {
 	s.applyLock.Lock()
 	defer s.applyLock.Unlock()
 
@@ -234,7 +233,7 @@ func (s *Server) Apply(
 
 	if req.Continues {
 		s.apply[req.Id] = apply
-		return &sharedmemorypb.ApplyResponse{}, nil
+		return &gsharedmemoryproto.ApplyResponse{}, nil
 	}
 
 	delete(s.apply, req.Id)
@@ -246,12 +245,12 @@ func (s *Server) Apply(
 		i++
 	}
 
-	return &sharedmemorypb.ApplyResponse{}, s.sm.Apply(apply.requests, batches...)
+	return &gsharedmemoryproto.ApplyResponse{}, s.sm.Apply(apply.requests, batches...)
 }
 
 func (s *Server) parseRequests(
 	requests map[ids.ID]*atomic.Requests,
-	rawRequests []*sharedmemorypb.AtomicRequest,
+	rawRequests []*gsharedmemoryproto.AtomicRequest,
 ) error {
 	for _, value := range rawRequests {
 		peerChainID, err := ids.ToID(value.PeerChainId)
@@ -281,7 +280,7 @@ func (s *Server) parseRequests(
 
 func (s *Server) parseBatches(
 	batches map[int64]database.Batch,
-	rawBatches []*sharedmemorypb.Batch,
+	rawBatches []*gsharedmemoryproto.Batch,
 ) error {
 	for _, reqBatch := range rawBatches {
 		batch, exists := batches[reqBatch.Id]

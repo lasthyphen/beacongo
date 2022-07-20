@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package peer
@@ -17,24 +17,24 @@ func TestSet(t *testing.T) {
 	set := NewSet()
 
 	peer1 := &peer{
-		id:             ids.NodeID{0x01},
+		id:             ids.ShortID{0x01},
 		observedUptime: 0,
 	}
 	updatedPeer1 := &peer{
-		id:             ids.NodeID{0x01},
+		id:             ids.ShortID{0x01},
 		observedUptime: 1,
 	}
 	peer2 := &peer{
-		id: ids.NodeID{0x02},
+		id: ids.ShortID{0x02},
 	}
 	unknownPeer := &peer{
-		id: ids.NodeID{0xff},
+		id: ids.ShortID{0xff},
 	}
 	peer3 := &peer{
-		id: ids.NodeID{0x03},
+		id: ids.ShortID{0x03},
 	}
 	peer4 := &peer{
-		id: ids.NodeID{0x04},
+		id: ids.ShortID{0x04},
 	}
 
 	// add of first peer is handled
@@ -98,10 +98,10 @@ func TestSetSample(t *testing.T) {
 	set := NewSet()
 
 	peer1 := &peer{
-		id: ids.NodeID{0x01},
+		id: ids.ShortID{0x01},
 	}
 	peer2 := &peer{
-		id: ids.NodeID{0x02},
+		id: ids.ShortID{0x02},
 	}
 
 	// Case: Empty

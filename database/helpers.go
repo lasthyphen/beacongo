@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package database
@@ -151,13 +151,6 @@ func Size(db Iteratee) (int, error) {
 		size += len(iterator.Key()) + len(iterator.Value()) + kvPairOverhead
 	}
 	return size, iterator.Error()
-}
-
-func IsEmpty(db Iteratee) (bool, error) {
-	iterator := db.NewIterator()
-	defer iterator.Release()
-
-	return !iterator.Next(), iterator.Error()
 }
 
 func Clear(readerDB Iteratee, deleterDB KeyValueDeleter) error {

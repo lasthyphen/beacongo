@@ -117,19 +117,19 @@ func (mr *MockManagerMockRecorder) GetFactory(vmID interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFactory", reflect.TypeOf((*MockManager)(nil).GetFactory), vmID)
 }
 
-// ListFactories mocks base method.
-func (m *MockManager) ListFactories() ([]ids.ID, error) {
+// ListVMs mocks base method.
+func (m *MockManager) ListVMs() ([]ids.ID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListFactories")
+	ret := m.ctrl.Call(m, "ListVMs")
 	ret0, _ := ret[0].([]ids.ID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListFactories indicates an expected call of ListFactories.
-func (mr *MockManagerMockRecorder) ListFactories() *gomock.Call {
+// ListVMs indicates an expected call of ListVMs.
+func (mr *MockManagerMockRecorder) ListVMs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFactories", reflect.TypeOf((*MockManager)(nil).ListFactories))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVMs", reflect.TypeOf((*MockManager)(nil).ListVMs))
 }
 
 // Lookup mocks base method.

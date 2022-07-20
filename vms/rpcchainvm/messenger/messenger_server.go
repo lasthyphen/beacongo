@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package messenger
@@ -7,20 +7,19 @@ import (
 	"context"
 	"errors"
 
+	"github.com/lasthyphen/beacongo/api/proto/messengerproto"
 	"github.com/lasthyphen/beacongo/snow/engine/common"
-
-	messengerpb "github.com/lasthyphen/beacongo/proto/pb/messenger"
 )
 
 var (
 	errFullQueue = errors.New("full message queue")
 
-	_ messengerpb.MessengerServer = &Server{}
+	_ messengerproto.MessengerServer = &Server{}
 )
 
 // Server is a messenger that is managed over RPC.
 type Server struct {
-	messengerpb.UnsafeMessengerServer
+	messengerproto.UnimplementedMessengerServer
 	messenger chan<- common.Message
 }
 
@@ -29,11 +28,11 @@ func NewServer(messenger chan<- common.Message) *Server {
 	return &Server{messenger: messenger}
 }
 
-func (s *Server) Notify(_ context.Context, req *messengerpb.NotifyRequest) (*messengerpb.NotifyResponse, error) {
+func (s *Server) Notify(_ context.Context, req *messengerproto.NotifyRequest) (*messengerproto.NotifyResponse, error) {
 	msg := common.Message(req.Message)
 	select {
 	case s.messenger <- msg:
-		return &messengerpb.NotifyResponse{}, nil
+		return &messengerproto.NotifyResponse{}, nil
 	default:
 		return nil, errFullQueue
 	}

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package state
@@ -27,16 +27,9 @@ func newTestSerializer(t *testing.T, parse func([]byte) (snowstorm.Tx, error)) *
 
 	baseDB := memdb.New()
 	ctx := snow.DefaultContextTest()
-	s := NewSerializer(
-		SerializerConfig{
-			ChainID: ctx.ChainID,
-			VM:      &vm,
-			DB:      baseDB,
-			Log:     ctx.Log,
-		},
-	)
-
-	return s.(*Serializer)
+	s := &Serializer{}
+	s.Initialize(ctx, &vm, baseDB)
+	return s
 }
 
 func TestUnknownUniqueVertexErrors(t *testing.T) {
@@ -44,7 +37,7 @@ func TestUnknownUniqueVertexErrors(t *testing.T) {
 
 	uVtx := &uniqueVertex{
 		serializer: s,
-		id:         ids.ID{},
+		vtxID:      ids.ID{},
 	}
 
 	status := uVtx.Status()
@@ -80,7 +73,7 @@ func TestUniqueVertexCacheHit(t *testing.T) {
 		return testTx, nil
 	})
 
-	id := ids.ID{2}
+	vtxID := ids.ID{2}
 	parentID := ids.ID{'p', 'a', 'r', 'e', 'n', 't'}
 	parentIDs := []ids.ID{parentID}
 	chainID := ids.ID{} // Same as chainID of serializer
@@ -96,7 +89,7 @@ func TestUniqueVertexCacheHit(t *testing.T) {
 	}
 
 	uVtx := &uniqueVertex{
-		id:         id,
+		vtxID:      vtxID,
 		serializer: s,
 	}
 	if err := uVtx.setVertex(vtx); err != nil {
@@ -104,7 +97,7 @@ func TestUniqueVertexCacheHit(t *testing.T) {
 	}
 
 	newUVtx := &uniqueVertex{
-		id:         id,
+		vtxID:      vtxID,
 		serializer: s,
 	}
 
@@ -192,11 +185,11 @@ func TestUniqueVertexCacheMiss(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	id := innerVertex.ID()
+	vtxID := innerVertex.ID()
 	vtxBytes := innerVertex.Bytes()
 
 	uVtx := uniqueVertex{
-		id:         id,
+		vtxID:      vtxID,
 		serializer: s,
 	}
 
@@ -259,7 +252,7 @@ func TestUniqueVertexCacheMiss(t *testing.T) {
 
 	// Replace the vertex, so that it loses reference to parents, etc.
 	vtx = &uniqueVertex{
-		id:         id,
+		vtxID:      vtxID,
 		serializer: s,
 	}
 
@@ -278,7 +271,7 @@ func TestUniqueVertexCacheMiss(t *testing.T) {
 
 	s.state.uniqueVtx.Flush()
 	vtx = &uniqueVertex{
-		id:         id,
+		vtxID:      vtxID,
 		serializer: s,
 	}
 	validateVertex(vtx, choices.Processing)
@@ -347,15 +340,15 @@ func TestParseVertexWithInvalidTxs(t *testing.T) {
 		t.Fatal("should have failed to parse the vertex after previously error on parsing invalid transactions")
 	}
 
-	id := hashing.ComputeHash256Array(vtxBytes)
-	if _, err := s.GetVtx(id); err == nil {
+	vtxID := hashing.ComputeHash256Array(vtxBytes)
+	if _, err := s.GetVtx(vtxID); err == nil {
 		t.Fatal("should have failed to lookup invalid vertex after previously error on parsing invalid transactions")
 	}
 
 	childStatelessVertex, err := vertex.Build( // regular, non-stop vertex
 		ctx.ChainID,
 		1,
-		[]ids.ID{id},
+		[]ids.ID{vtxID},
 		[][]byte{{2}},
 	)
 	if err != nil {
@@ -425,9 +418,9 @@ func TestStopVertexWhitelistWithParents(t *testing.T) {
 	if err := uvtx2.Accept(); err != nil {
 		t.Fatal(err)
 	}
-	uvtx3 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.id, uvtx2.id}, [][]byte{{'e'}, {'f'}}, false)
-	uvtx4 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.id, uvtx2.id}, [][]byte{{'g'}, {'h'}}, false)
-	svtx5 := newTestUniqueVertex(t, ts, []ids.ID{uvtx3.id, uvtx4.id}, nil, true)
+	uvtx3 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.vtxID, uvtx2.vtxID}, [][]byte{{'e'}, {'f'}}, false)
+	uvtx4 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.vtxID, uvtx2.vtxID}, [][]byte{{'g'}, {'h'}}, false)
+	svtx5 := newTestUniqueVertex(t, ts, []ids.ID{uvtx3.vtxID, uvtx4.vtxID}, nil, true)
 
 	whitelist, err := svtx5.Whitelist()
 	if err != nil {
@@ -463,11 +456,11 @@ func TestStopVertexWhitelistWithLinearChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	uvtx4 := newTestUniqueVertex(t, ts, []ids.ID{uvtx5.id}, [][]byte{{'d'}}, false)
-	uvtx3 := newTestUniqueVertex(t, ts, []ids.ID{uvtx4.id}, [][]byte{{'c'}}, false)
-	uvtx2 := newTestUniqueVertex(t, ts, []ids.ID{uvtx3.id}, [][]byte{{'b'}}, false)
-	uvtx1 := newTestUniqueVertex(t, ts, []ids.ID{uvtx2.id}, [][]byte{{'a'}}, false)
-	uvtx0 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.id}, nil, true)
+	uvtx4 := newTestUniqueVertex(t, ts, []ids.ID{uvtx5.vtxID}, [][]byte{{'d'}}, false)
+	uvtx3 := newTestUniqueVertex(t, ts, []ids.ID{uvtx4.vtxID}, [][]byte{{'c'}}, false)
+	uvtx2 := newTestUniqueVertex(t, ts, []ids.ID{uvtx3.vtxID}, [][]byte{{'b'}}, false)
+	uvtx1 := newTestUniqueVertex(t, ts, []ids.ID{uvtx2.vtxID}, [][]byte{{'a'}}, false)
+	uvtx0 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.vtxID}, nil, true)
 
 	whitelist, err := uvtx0.Whitelist()
 	if err != nil {
@@ -528,10 +521,10 @@ func TestStopVertexVerifyUnexpectedDependencies(t *testing.T) {
 	if err := uvtx2.Accept(); err != nil {
 		t.Fatal(err)
 	}
-	uvtx3 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.id, uvtx2.id}, [][]byte{{'e'}, {'f'}}, false)
-	uvtx4 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.id, uvtx2.id}, [][]byte{{'g'}, {'h'}}, false)
+	uvtx3 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.vtxID, uvtx2.vtxID}, [][]byte{{'e'}, {'f'}}, false)
+	uvtx4 := newTestUniqueVertex(t, ts, []ids.ID{uvtx1.vtxID, uvtx2.vtxID}, [][]byte{{'g'}, {'h'}}, false)
 
-	svtx5 := newTestUniqueVertex(t, ts, []ids.ID{uvtx4.id}, nil, true)
+	svtx5 := newTestUniqueVertex(t, ts, []ids.ID{uvtx4.vtxID}, nil, true)
 	if verr := svtx5.Verify(); !errors.Is(verr, errUnexpectedDependencyStopVtx) {
 		t.Fatalf("stop vertex 'Verify' expected %v, got %v", errUnexpectedDependencyStopVtx, verr)
 	}
@@ -543,7 +536,7 @@ func TestStopVertexVerifyUnexpectedDependencies(t *testing.T) {
 		t.Fatalf("unexpected type %T", txEInf)
 	}
 	txE.StatusV = choices.Accepted
-	svtx5 = newTestUniqueVertex(t, ts, []ids.ID{uvtx4.id}, nil, true)
+	svtx5 = newTestUniqueVertex(t, ts, []ids.ID{uvtx4.vtxID}, nil, true)
 	if verr := svtx5.Verify(); verr != nil {
 		t.Fatalf("stop vertex 'Verify' expected nil, got %v", verr)
 	}
@@ -558,7 +551,7 @@ func TestStopVertexVerifyUnexpectedDependencies(t *testing.T) {
 	//    [tx_e, tx_f]          [tx_g, tx_h]
 	//                    ⬉           ⬆
 	//                         stop_vertex_5
-	svtx5 = newTestUniqueVertex(t, ts, []ids.ID{uvtx3.id, uvtx4.id}, nil, true)
+	svtx5 = newTestUniqueVertex(t, ts, []ids.ID{uvtx3.vtxID, uvtx4.vtxID}, nil, true)
 	if verr := svtx5.Verify(); verr != nil {
 		t.Fatalf("stop vertex 'Verify' expected nil, got %v", verr)
 	}
@@ -585,7 +578,7 @@ func TestStopVertexVerifyUnexpectedDependencies(t *testing.T) {
 	//                              vtx_6
 	//                              [tx_x]
 	//                           (should fail)
-	uvtx6 := newTestUniqueVertex(t, ts, []ids.ID{svtx5.id}, [][]byte{{'x'}}, false)
+	uvtx6 := newTestUniqueVertex(t, ts, []ids.ID{svtx5.vtxID}, [][]byte{{'x'}}, false)
 	if verr := uvtx6.Verify(); !errors.Is(verr, errStopVertexAlreadyAccepted) {
 		t.Fatalf("stop vertex 'Verify' expected %v, got %v", errStopVertexAlreadyAccepted, verr)
 	}
@@ -596,7 +589,7 @@ func TestStopVertexVerifyNotAllowedTimestamp(t *testing.T) {
 
 	_, parseTx := generateTestTxs('a')
 	ts := newTestSerializer(t, parseTx)
-	ts.XChainMigrationTime = version.XChainMigrationDefaultTime
+	ts.xChainMigrationTime = version.XChainMigrationDefaultTime
 
 	svtx := newTestUniqueVertex(t, ts, nil, nil, true)
 	svtx.time = func() time.Time { return version.XChainMigrationDefaultTime.Add(-time.Second) }

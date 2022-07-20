@@ -1,13 +1,11 @@
 #!/bin/bash
 
-# any version changes here should also be bumped in Dockerfile.buf
-BUF_VERSION='1.5.0'
-PROTOC_GEN_GO_VERSION='v1.28.0'
-PROTOC_GEN_GO_GRPC_VERSION='1.2.0'
-
 # buf is required see:https://docs.buf.build/installation
-# go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}
-# go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
+
+# any version changes here should also be bumped in Dockerfile.buf
+BUF_VERSION='1.0.0-rc12'
+PROTOC_GEN_GO_VERSION='v1.27.1'
+PROTOC_GEN_GO_GRPC_VERSION='1.2.0'
 
 if ! [[ "$0" =~ scripts/protobuf_codegen.sh ]]; then
   echo "must be run from repository root"
@@ -29,17 +27,13 @@ if [[ $(protoc-gen-go-grpc --version | cut -f2 -d' ') != "${PROTOC_GEN_GO_GRPC_V
   exit 255
 fi
 
-TARGET=$PWD/proto
+TARGET=$PWD/api
 if [ -n "$1" ]; then 
   TARGET="$1"
 fi
 
 # move to api directory
 cd $TARGET
-
-echo "Running protobuf fmt..."
-
-buf format -w
 
 echo "Running protobuf lint check..."
 

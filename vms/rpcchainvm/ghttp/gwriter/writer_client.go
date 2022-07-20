@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package gwriter
@@ -8,21 +8,21 @@ import (
 	"errors"
 	"io"
 
-	writerpb "github.com/lasthyphen/beacongo/proto/pb/io/writer"
+	"github.com/lasthyphen/beacongo/api/proto/gwriterproto"
 )
 
 var _ io.Writer = &Client{}
 
 // Client is an io.Writer that talks over RPC.
-type Client struct{ client writerpb.WriterClient }
+type Client struct{ client gwriterproto.WriterClient }
 
 // NewClient returns a writer connected to a remote writer
-func NewClient(client writerpb.WriterClient) *Client {
+func NewClient(client gwriterproto.WriterClient) *Client {
 	return &Client{client: client}
 }
 
 func (c *Client) Write(p []byte) (int, error) {
-	resp, err := c.client.Write(context.Background(), &writerpb.WriteRequest{
+	resp, err := c.client.Write(context.Background(), &gwriterproto.WriteRequest{
 		Payload: p,
 	})
 	if err != nil {

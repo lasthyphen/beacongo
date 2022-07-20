@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package uptime
@@ -21,23 +21,23 @@ type uptime struct {
 type TestState struct {
 	dbReadError  error
 	dbWriteError error
-	nodes        map[ids.NodeID]*uptime
+	nodes        map[ids.ShortID]*uptime
 }
 
 func NewTestState() *TestState {
 	return &TestState{
-		nodes: make(map[ids.NodeID]*uptime),
+		nodes: make(map[ids.ShortID]*uptime),
 	}
 }
 
-func (s *TestState) AddNode(nodeID ids.NodeID, startTime time.Time) {
+func (s *TestState) AddNode(nodeID ids.ShortID, startTime time.Time) {
 	s.nodes[nodeID] = &uptime{
 		lastUpdated: startTime,
 		startTime:   startTime,
 	}
 }
 
-func (s *TestState) GetUptime(nodeID ids.NodeID) (time.Duration, time.Time, error) {
+func (s *TestState) GetUptime(nodeID ids.ShortID) (time.Duration, time.Time, error) {
 	up, exists := s.nodes[nodeID]
 	if !exists {
 		return 0, time.Time{}, database.ErrNotFound
@@ -45,7 +45,7 @@ func (s *TestState) GetUptime(nodeID ids.NodeID) (time.Duration, time.Time, erro
 	return up.upDuration, up.lastUpdated, s.dbReadError
 }
 
-func (s *TestState) SetUptime(nodeID ids.NodeID, upDuration time.Duration, lastUpdated time.Time) error {
+func (s *TestState) SetUptime(nodeID ids.ShortID, upDuration time.Duration, lastUpdated time.Time) error {
 	up, exists := s.nodes[nodeID]
 	if !exists {
 		return database.ErrNotFound
@@ -55,7 +55,7 @@ func (s *TestState) SetUptime(nodeID ids.NodeID, upDuration time.Duration, lastU
 	return s.dbWriteError
 }
 
-func (s *TestState) GetStartTime(nodeID ids.NodeID) (time.Time, error) {
+func (s *TestState) GetStartTime(nodeID ids.ShortID) (time.Time, error) {
 	up, exists := s.nodes[nodeID]
 	if !exists {
 		return time.Time{}, database.ErrNotFound

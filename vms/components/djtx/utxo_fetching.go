@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package djtx
@@ -6,7 +6,6 @@ package djtx
 import (
 	"bytes"
 	"fmt"
-	"math"
 
 	"github.com/lasthyphen/beacongo/ids"
 
@@ -36,7 +35,7 @@ func GetAllUTXOs(db UTXOReader, addrs ids.ShortSet) ([]*UTXO, error) {
 		addrs,
 		ids.ShortEmpty,
 		ids.Empty,
-		math.MaxInt,
+		safemath.MaxInt,
 	)
 	return utxos, err
 }

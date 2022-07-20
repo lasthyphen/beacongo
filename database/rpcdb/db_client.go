@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpcdb
@@ -8,13 +8,12 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/lasthyphen/beacongo/api/proto/rpcdbproto"
 	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/database/nodb"
 	"github.com/lasthyphen/beacongo/utils"
 	"github.com/lasthyphen/beacongo/utils/units"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
-
-	rpcdbpb "github.com/lasthyphen/beacongo/proto/pb/rpcdb"
 )
 
 const (
@@ -33,20 +32,20 @@ var (
 
 // DatabaseClient is an implementation of database that talks over RPC.
 type DatabaseClient struct {
-	client rpcdbpb.DatabaseClient
+	client rpcdbproto.DatabaseClient
 
 	closed     utils.AtomicBool
 	batchIndex int64
 }
 
 // NewClient returns a database instance connected to a remote database instance
-func NewClient(client rpcdbpb.DatabaseClient) *DatabaseClient {
+func NewClient(client rpcdbproto.DatabaseClient) *DatabaseClient {
 	return &DatabaseClient{client: client}
 }
 
 // Has attempts to return if the database has a key with the provided value.
 func (db *DatabaseClient) Has(key []byte) (bool, error) {
-	resp, err := db.client.Has(context.Background(), &rpcdbpb.HasRequest{
+	resp, err := db.client.Has(context.Background(), &rpcdbproto.HasRequest{
 		Key: key,
 	})
 	if err != nil {
@@ -57,7 +56,7 @@ func (db *DatabaseClient) Has(key []byte) (bool, error) {
 
 // Get attempts to return the value that was mapped to the key that was provided
 func (db *DatabaseClient) Get(key []byte) ([]byte, error) {
-	resp, err := db.client.Get(context.Background(), &rpcdbpb.GetRequest{
+	resp, err := db.client.Get(context.Background(), &rpcdbproto.GetRequest{
 		Key: key,
 	})
 	if err != nil {
@@ -68,7 +67,7 @@ func (db *DatabaseClient) Get(key []byte) ([]byte, error) {
 
 // Put attempts to set the value this key maps to
 func (db *DatabaseClient) Put(key, value []byte) error {
-	resp, err := db.client.Put(context.Background(), &rpcdbpb.PutRequest{
+	resp, err := db.client.Put(context.Background(), &rpcdbproto.PutRequest{
 		Key:   key,
 		Value: value,
 	})
@@ -80,7 +79,7 @@ func (db *DatabaseClient) Put(key, value []byte) error {
 
 // Delete attempts to remove any mapping from the key
 func (db *DatabaseClient) Delete(key []byte) error {
-	resp, err := db.client.Delete(context.Background(), &rpcdbpb.DeleteRequest{
+	resp, err := db.client.Delete(context.Background(), &rpcdbproto.DeleteRequest{
 		Key: key,
 	})
 	if err != nil {
@@ -106,7 +105,7 @@ func (db *DatabaseClient) NewIteratorWithPrefix(prefix []byte) database.Iterator
 
 // NewIteratorWithStartAndPrefix returns a new empty iterator
 func (db *DatabaseClient) NewIteratorWithStartAndPrefix(start, prefix []byte) database.Iterator {
-	resp, err := db.client.NewIteratorWithStartAndPrefix(context.Background(), &rpcdbpb.NewIteratorWithStartAndPrefixRequest{
+	resp, err := db.client.NewIteratorWithStartAndPrefix(context.Background(), &rpcdbproto.NewIteratorWithStartAndPrefixRequest{
 		Start:  start,
 		Prefix: prefix,
 	})
@@ -119,9 +118,20 @@ func (db *DatabaseClient) NewIteratorWithStartAndPrefix(start, prefix []byte) da
 	}
 }
 
+// Stat attempts to return the statistic of this database
+func (db *DatabaseClient) Stat(property string) (string, error) {
+	resp, err := db.client.Stat(context.Background(), &rpcdbproto.StatRequest{
+		Property: property,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Stat, errCodeToError[resp.Err]
+}
+
 // Compact attempts to optimize the space utilization in the provided range
 func (db *DatabaseClient) Compact(start, limit []byte) error {
-	resp, err := db.client.Compact(context.Background(), &rpcdbpb.CompactRequest{
+	resp, err := db.client.Compact(context.Background(), &rpcdbproto.CompactRequest{
 		Start: start,
 		Limit: limit,
 	})
@@ -134,7 +144,7 @@ func (db *DatabaseClient) Compact(start, limit []byte) error {
 // Close attempts to close the database
 func (db *DatabaseClient) Close() error {
 	db.closed.SetValue(true)
-	resp, err := db.client.Close(context.Background(), &rpcdbpb.CloseRequest{})
+	resp, err := db.client.Close(context.Background(), &rpcdbproto.CloseRequest{})
 	if err != nil {
 		return err
 	}
@@ -168,7 +178,7 @@ func (b *batch) Delete(key []byte) error {
 func (b *batch) Size() int { return b.size }
 
 func (b *batch) Write() error {
-	request := &rpcdbpb.WriteBatchRequest{
+	request := &rpcdbproto.WriteBatchRequest{
 		Id:        atomic.AddInt64(&b.db.batchIndex, 1),
 		Continues: true,
 	}
@@ -198,11 +208,11 @@ func (b *batch) Write() error {
 		currentSize += sizeChange
 
 		if kv.delete {
-			request.Deletes = append(request.Deletes, &rpcdbpb.DeleteRequest{
+			request.Deletes = append(request.Deletes, &rpcdbproto.DeleteRequest{
 				Key: kv.key,
 			})
 		} else {
-			request.Puts = append(request.Puts, &rpcdbpb.PutRequest{
+			request.Puts = append(request.Puts, &rpcdbproto.PutRequest{
 				Key:   kv.key,
 				Value: kv.value,
 			})
@@ -245,7 +255,7 @@ type iterator struct {
 	db *DatabaseClient
 	id uint64
 
-	data []*rpcdbpb.PutRequest
+	data []*rpcdbproto.PutRequest
 	errs wrappers.Errs
 }
 
@@ -258,12 +268,11 @@ func (it *iterator) Next() bool {
 		return false
 	}
 	if len(it.data) > 1 {
-		it.data[0] = nil
 		it.data = it.data[1:]
 		return true
 	}
 
-	resp, err := it.db.client.IteratorNext(context.Background(), &rpcdbpb.IteratorNextRequest{
+	resp, err := it.db.client.IteratorNext(context.Background(), &rpcdbproto.IteratorNextRequest{
 		Id: it.id,
 	})
 	if err != nil {
@@ -280,7 +289,7 @@ func (it *iterator) Error() error {
 		return it.errs.Err
 	}
 
-	resp, err := it.db.client.IteratorError(context.Background(), &rpcdbpb.IteratorErrorRequest{
+	resp, err := it.db.client.IteratorError(context.Background(), &rpcdbproto.IteratorErrorRequest{
 		Id: it.id,
 	})
 	if err != nil {
@@ -309,7 +318,7 @@ func (it *iterator) Value() []byte {
 
 // Release frees any resources held by the iterator
 func (it *iterator) Release() {
-	resp, err := it.db.client.IteratorRelease(context.Background(), &rpcdbpb.IteratorReleaseRequest{
+	resp, err := it.db.client.IteratorRelease(context.Background(), &rpcdbproto.IteratorReleaseRequest{
 		Id: it.id,
 	})
 	if err != nil {

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package p
@@ -9,8 +9,6 @@ import (
 	"github.com/lasthyphen/beacongo/vms/platformvm"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 	"github.com/lasthyphen/beacongo/wallet/subnet/primary/common"
-
-	pChainValidator "github.com/lasthyphen/beacongo/vms/platformvm/validator"
 )
 
 var _ Builder = &builderWithOptions{}
@@ -53,7 +51,7 @@ func (b *builderWithOptions) GetImportableBalance(
 }
 
 func (b *builderWithOptions) NewAddValidatorTx(
-	validator *pChainValidator.Validator,
+	validator *platformvm.Validator,
 	rewardsOwner *secp256k1fx.OutputOwners,
 	shares uint32,
 	options ...common.Option,
@@ -67,7 +65,7 @@ func (b *builderWithOptions) NewAddValidatorTx(
 }
 
 func (b *builderWithOptions) NewAddSubnetValidatorTx(
-	validator *pChainValidator.SubnetValidator,
+	validator *platformvm.SubnetValidator,
 	options ...common.Option,
 ) (*platformvm.UnsignedAddSubnetValidatorTx, error) {
 	return b.Builder.NewAddSubnetValidatorTx(
@@ -77,7 +75,7 @@ func (b *builderWithOptions) NewAddSubnetValidatorTx(
 }
 
 func (b *builderWithOptions) NewAddDelegatorTx(
-	validator *pChainValidator.Validator,
+	validator *platformvm.Validator,
 	rewardsOwner *secp256k1fx.OutputOwners,
 	options ...common.Option,
 ) (*platformvm.UnsignedAddDelegatorTx, error) {

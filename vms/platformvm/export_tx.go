@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -15,7 +15,6 @@ import (
 	"github.com/lasthyphen/beacongo/utils/math"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/components/verify"
-	"github.com/lasthyphen/beacongo/vms/platformvm/stakeable"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 )
 
@@ -71,7 +70,7 @@ func (tx *UnsignedExportTx) SyntacticVerify(ctx *snow.Context) error {
 		if err := out.Verify(); err != nil {
 			return fmt.Errorf("output failed verification: %w", err)
 		}
-		if _, ok := out.Output().(*stakeable.LockOut); ok {
+		if _, ok := out.Output().(*StakeableLockOut); ok {
 			return errWrongLocktime
 		}
 	}

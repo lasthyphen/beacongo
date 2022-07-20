@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -15,27 +15,20 @@ import (
 	"github.com/lasthyphen/beacongo/snow/engine/common"
 	"github.com/lasthyphen/beacongo/utils/timer"
 	"github.com/lasthyphen/beacongo/utils/timer/mockable"
-	"github.com/lasthyphen/beacongo/utils/units"
 )
 
 const (
 	// syncBound is the synchrony bound used for safe decision making
 	syncBound = 10 * time.Second
 
-	// TargetTxSize is the maximum number of bytes a transaction can use to be
-	// allowed into the mempool.
-	TargetTxSize = 64 * units.KiB
-
-	// TargetBlockSize is maximum number of transaction bytes to place into a
-	// StandardBlock
-	TargetBlockSize = 128 * units.KiB
+	// BatchSize is the number of decision transactions to place into a block
+	BatchSize = 30
 )
 
 var (
 	errEndOfTime         = errors.New("program time is suspiciously far in the future")
 	errNoPendingBlocks   = errors.New("no pending blocks")
 	errMempoolReentrancy = errors.New("mempool reentrancy")
-	errTxTooBig          = errors.New("tx too big")
 )
 
 // blockBuilder implements a simple blockBuilder to convert txs into valid blocks
@@ -111,7 +104,7 @@ func (m *blockBuilder) AddUnverifiedTx(tx *Tx) error {
 
 	preferredState := preferredDecision.onAccept()
 	if err := tx.UnsignedTx.SemanticVerify(m.vm, preferredState, tx); err != nil {
-		m.MarkDropped(txID, err.Error())
+		m.MarkDropped(txID)
 		return err
 	}
 
@@ -125,11 +118,6 @@ func (m *blockBuilder) AddUnverifiedTx(tx *Tx) error {
 func (m *blockBuilder) AddVerifiedTx(tx *Tx) error {
 	if m.dropIncoming {
 		return errMempoolReentrancy
-	}
-
-	txBytes := tx.Bytes()
-	if len(txBytes) > TargetTxSize {
-		return errTxTooBig
 	}
 
 	if err := m.Add(tx); err != nil {
@@ -165,7 +153,7 @@ func (m *blockBuilder) BuildBlock() (snowman.Block, error) {
 
 	// Try building a standard block.
 	if m.HasDecisionTxs() {
-		txs := m.PopDecisionTxs(TargetBlockSize)
+		txs := m.PopDecisionTxs(BatchSize)
 		return m.vm.newStandardBlock(preferredID, nextHeight, txs)
 	}
 
@@ -352,7 +340,7 @@ func (m *blockBuilder) dropTooEarlyMempoolProposalTxs() bool {
 			startTime,
 		)
 
-		m.vm.blockBuilder.MarkDropped(txID, errMsg) // cache tx as dropped
+		m.vm.droppedTxCache.Put(txID, errMsg) // cache tx as dropped
 		m.vm.ctx.Log.Debug("dropping tx %s: %s", txID, errMsg)
 	}
 	return false

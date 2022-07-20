@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package encdb
@@ -131,6 +131,16 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 		Iterator: db.db.NewIteratorWithStartAndPrefix(start, prefix),
 		db:       db,
 	}
+}
+
+func (db *Database) Stat(stat string) (string, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	if db.db == nil {
+		return "", database.ErrClosed
+	}
+	return db.db.Stat(stat)
 }
 
 func (db *Database) Compact(start, limit []byte) error {

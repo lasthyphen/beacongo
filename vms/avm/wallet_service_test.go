@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -10,7 +10,6 @@ import (
 	"github.com/lasthyphen/beacongo/api"
 	"github.com/lasthyphen/beacongo/chains/atomic"
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/keystore"
 )
 
@@ -19,11 +18,11 @@ import (
 // 2) the VM
 // 3) The wallet service that wraps the VM
 // 4) atomic memory to use in tests
-func setupWS(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *WalletService, *atomic.Memory, *txs.Tx) {
+func setupWS(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *WalletService, *atomic.Memory, *Tx) {
 	var genesisBytes []byte
 	var vm *VM
 	var m *atomic.Memory
-	var genesisTx *txs.Tx
+	var genesisTx *Tx
 	if isDJTXAsset {
 		genesisBytes, _, vm, m = GenesisVM(t)
 		genesisTx = GetDJTXTxFromGenesisTest(genesisBytes, t)
@@ -41,7 +40,7 @@ func setupWS(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *WalletService, *atom
 // 2) the VM
 // 3) The wallet service that wraps the VM
 // 4) atomic memory to use in tests
-func setupWSWithKeys(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *WalletService, *atomic.Memory, *txs.Tx) {
+func setupWSWithKeys(t *testing.T, isDJTXAsset bool) ([]byte, *VM, *WalletService, *atomic.Memory, *Tx) {
 	genesisBytes, vm, ws, m, tx := setupWS(t, isDJTXAsset)
 
 	// Import the initially funded private keys

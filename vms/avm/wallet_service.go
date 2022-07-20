@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -10,11 +10,10 @@ import (
 
 	"github.com/lasthyphen/beacongo/api"
 	"github.com/lasthyphen/beacongo/ids"
-	"github.com/lasthyphen/beacongo/utils/formatting"
-	"github.com/lasthyphen/beacongo/vms/avm/txs"
 	"github.com/lasthyphen/beacongo/vms/components/djtx"
 	"github.com/lasthyphen/beacongo/vms/secp256k1fx"
 
+	"github.com/lasthyphen/beacongo/utils/formatting"
 	safemath "github.com/lasthyphen/beacongo/utils/math"
 )
 
@@ -35,7 +34,7 @@ func (w *WalletService) decided(txID ids.ID) {
 }
 
 func (w *WalletService) issue(txBytes []byte) (ids.ID, error) {
-	tx, err := w.vm.parser.Parse(txBytes)
+	tx, err := w.vm.parsePrivateTx(txBytes)
 	if err != nil {
 		return ids.ID{}, err
 	}
@@ -60,7 +59,7 @@ func (w *WalletService) update(utxos []*djtx.UTXO) ([]*djtx.UTXO, error) {
 	}
 
 	for e := w.pendingTxOrdering.Front(); e != nil; e = e.Next() {
-		tx := e.Value.(*txs.Tx)
+		tx := e.Value.(*Tx)
 		for _, inputUTXO := range tx.InputUTXOs() {
 			if inputUTXO.Symbolic() {
 				continue
@@ -123,9 +122,13 @@ func (w *WalletService) SendMultiple(r *http.Request, args *SendMultipleArgs, re
 	}
 
 	// Parse the from addresses
-	fromAddrs, err := djtx.ParseServiceAddresses(w.vm, args.From)
-	if err != nil {
-		return fmt.Errorf("couldn't parse 'From' addresses: %w", err)
+	fromAddrs := ids.NewShortSet(len(args.From))
+	for _, addrStr := range args.From {
+		addr, err := w.vm.ParseLocalAddress(addrStr)
+		if err != nil {
+			return fmt.Errorf("couldn't parse 'From' address %s: %w", addrStr, err)
+		}
+		fromAddrs.Add(addr)
 	}
 
 	// Load user's UTXOs/keys
@@ -175,7 +178,7 @@ func (w *WalletService) SendMultiple(r *http.Request, args *SendMultipleArgs, re
 		amounts[assetID] = newAmount
 
 		// Parse the to address
-		to, err := djtx.ParseServiceAddress(w.vm, output.To)
+		to, err := w.vm.ParseLocalAddress(output.To)
 		if err != nil {
 			return fmt.Errorf("problem parsing to address %q: %w", output.To, err)
 		}
@@ -232,18 +235,16 @@ func (w *WalletService) SendMultiple(r *http.Request, args *SendMultipleArgs, re
 			})
 		}
 	}
+	djtx.SortTransferableOutputs(outs, w.vm.codec)
 
-	codec := w.vm.parser.Codec()
-	djtx.SortTransferableOutputs(outs, codec)
-
-	tx := txs.Tx{UnsignedTx: &txs.BaseTx{BaseTx: djtx.BaseTx{
+	tx := Tx{UnsignedTx: &BaseTx{BaseTx: djtx.BaseTx{
 		NetworkID:    w.vm.ctx.NetworkID,
 		BlockchainID: w.vm.ctx.ChainID,
 		Outs:         outs,
 		Ins:          ins,
 		Memo:         memoBytes,
 	}}}
-	if err := tx.SignSECP256K1Fx(codec, keys); err != nil {
+	if err := tx.SignSECP256K1Fx(w.vm.codec, keys); err != nil {
 		return err
 	}
 

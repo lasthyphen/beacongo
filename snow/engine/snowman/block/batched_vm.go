@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package block
@@ -7,7 +7,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lasthyphen/beacongo/database"
 	"github.com/lasthyphen/beacongo/ids"
 	"github.com/lasthyphen/beacongo/snow/consensus/snowman"
 	"github.com/lasthyphen/beacongo/utils/wrappers"
@@ -55,12 +54,7 @@ func GetAncestors(
 	// RemoteVM did not work, try local logic
 	startTime := time.Now()
 	blk, err := vm.GetBlock(blkID)
-	if err == database.ErrNotFound {
-		// special case ErrNotFound as an empty response: this signals
-		// the client to avoid contacting this node for further ancestors
-		// as they may have been pruned or unavailable due to state-sync.
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
 

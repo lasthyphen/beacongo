@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package platformvm
@@ -238,7 +238,6 @@ func (b *CommonBlock) Accept() error {
 	b.vm.internalState.SetLastAccepted(blkID)
 	b.vm.internalState.SetHeight(b.Hght)
 	b.vm.lastAcceptedID = blkID
-	b.vm.recentlyAccepted.Add(blkID)
 	return b.vm.metrics.AcceptBlock(b.self)
 }
 

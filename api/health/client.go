@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2021, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2021, Dijets, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package health
@@ -10,19 +10,20 @@ import (
 	"github.com/lasthyphen/beacongo/utils/rpc"
 )
 
+// Interface compliance
 var _ Client = &client{}
 
 // Client interface for Avalanche Health API Endpoint
 type Client interface {
 	// Readiness returns if the node has finished initialization
-	Readiness(context.Context, ...rpc.Option) (*APIHealthReply, error)
+	Readiness(context.Context) (*APIHealthReply, error)
 	// Health returns a summation of the health of the node
-	Health(context.Context, ...rpc.Option) (*APIHealthReply, error)
+	Health(context.Context) (*APIHealthReply, error)
 	// Liveness returns if the node is in need of a restart
-	Liveness(context.Context, ...rpc.Option) (*APIHealthReply, error)
+	Liveness(context.Context) (*APIHealthReply, error)
 	// AwaitHealthy queries the Health endpoint with a pause of [interval]
 	// in between checks and returns early if Health returns healthy
-	AwaitHealthy(ctx context.Context, freq time.Duration, options ...rpc.Option) (bool, error)
+	AwaitHealthy(ctx context.Context, freq time.Duration) (bool, error)
 }
 
 // Client implementation for Avalanche Health API Endpoint
@@ -32,36 +33,35 @@ type client struct {
 
 // NewClient returns a client to interact with Health API endpoint
 func NewClient(uri string) Client {
-	return &client{requester: rpc.NewEndpointRequester(
-		uri+"/ext/health",
-		"health",
-	)}
+	return &client{
+		requester: rpc.NewEndpointRequester(uri, "/ext/health", "health"),
+	}
 }
 
-func (c *client) Readiness(ctx context.Context, options ...rpc.Option) (*APIHealthReply, error) {
+func (c *client) Readiness(ctx context.Context) (*APIHealthReply, error) {
 	res := &APIHealthReply{}
-	err := c.requester.SendRequest(ctx, "readiness", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "readiness", struct{}{}, res)
 	return res, err
 }
 
-func (c *client) Health(ctx context.Context, options ...rpc.Option) (*APIHealthReply, error) {
+func (c *client) Health(ctx context.Context) (*APIHealthReply, error) {
 	res := &APIHealthReply{}
-	err := c.requester.SendRequest(ctx, "health", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "health", struct{}{}, res)
 	return res, err
 }
 
-func (c *client) Liveness(ctx context.Context, options ...rpc.Option) (*APIHealthReply, error) {
+func (c *client) Liveness(ctx context.Context) (*APIHealthReply, error) {
 	res := &APIHealthReply{}
-	err := c.requester.SendRequest(ctx, "liveness", struct{}{}, res, options...)
+	err := c.requester.SendRequest(ctx, "liveness", struct{}{}, res)
 	return res, err
 }
 
-func (c *client) AwaitHealthy(ctx context.Context, freq time.Duration, options ...rpc.Option) (bool, error) {
+func (c *client) AwaitHealthy(ctx context.Context, freq time.Duration) (bool, error) {
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
 
 	for {
-		res, err := c.Health(ctx, options...)
+		res, err := c.Health(ctx)
 		if err == nil && res.Healthy {
 			return true, nil
 		}
