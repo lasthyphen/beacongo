@@ -21,7 +21,7 @@ var (
 				"initialAmount": 0,
 				"unlockSchedule": [
 					{
-						"amount": 13999990000000000,
+						"amount": 1999990000000000,
 						"locktime": 1633824000
 					}
 				]
@@ -32,10 +32,7 @@ var (
 				"initialAmount": 30000000000000000,
 				"unlockSchedule": [
 					{
-						"amount": 20000000000000000
-					},
-					{
-						"amount": 17999990000000000,
+						"amount": 35000000000000000,
 						"locktime": 1633824000
 					}
 				]
@@ -52,11 +49,11 @@ var (
 				]
 			}
 		],
-		"startTime": 1630987200,
+		"startTime": 1643818971,
 		"initialStakeDuration": 31536000,
 		"initialStakeDurationOffset": 5400,
 		"initialStakedFunds": [
-			"X-dijets1v8wat5z4cxh7wh873d7n6d9m6mpnynr8sgl059"
+			"X-dijets1uxkc262hvgsvstguvawwaanmsh8zvtcsd64l5e"
 		],
 		"initialStakers": [
 			{
